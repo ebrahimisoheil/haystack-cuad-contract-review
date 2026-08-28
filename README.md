@@ -137,6 +137,15 @@ This progression—from an individual execution graph to cross-run model and
 business analysis—is why Witdem is the intelligence layer in this repository,
 not merely a tracing UI.
 
+### Tutorial: the Witdem YAML contract
+
+The committed [`.witdem/witdem.yaml`](.witdem/witdem.yaml) is the bridge between
+technical telemetry and the business analysis above. The
+[project-specific tutorial](docs/witdem-contract-tutorial.md) explains every
+section and the reasoning behind it, including why a manual-review disposition
+can still achieve the product goal, why quality evaluations and diagnostic
+metrics are separate, and why contract content capture is off by default.
+
 After the public Witdem services are running and `.env` contains the three
 provider keys, create a safe fictional scan and run the verifier:
 
