@@ -104,6 +104,39 @@ compatible. The declared goal is to complete an evidence-backed approval **or
 escalation** route; it does not require every contract to be automatically
 approved.
 
+### From one run to system intelligence
+
+Witdem does more than reconstruct a single execution. It aggregates the
+observed runs into operational and product analysis, so the same dashboard can
+answer whether the system works, whether it achieves the declared business
+goal, and which model mix delivers that outcome at what speed and cost.
+
+**Model economics and operations.** Witdem compares measured spend with time per
+successful run, shows each model's share of measured spend, and ranks model
+configurations by cost or speed. Bubble size represents observed run volume;
+the values come from telemetry rather than estimates invented by this example.
+
+![Witdem analysis comparing model cost, speed, measured-spend share, and operational ranking](docs/images/witdem-08-model-cost-speed.png)
+
+**Business outcomes and system health.** Witdem separates goal achievement from
+runtime completion, reports cost coverage, and tracks goal performance over
+time. The dashboard selection shown here contains the accumulated observed run
+population, including the evidence-backed contract-review goal.
+
+![Witdem overview showing business outcomes, system health, measured spend, business goals, and goal performance over time](docs/images/witdem-09-business-goals.png)
+
+**Goal analysis by model.** Witdem joins participating models to achieved
+product goals, measured cost per run, decision correctness, and declared
+evaluation scores. The target markers make it visible whether evidence
+completeness and extraction confidence satisfy the thresholds in
+[the Witdem contract](.witdem/witdem.yaml).
+
+![Witdem goal breakdown comparing goal outcomes, measured cost, and declared evaluation quality by model](docs/images/witdem-10-goal-analysis-by-model.png)
+
+This progression—from an individual execution graph to cross-run model and
+business analysis—is why Witdem is the intelligence layer in this repository,
+not merely a tracing UI.
+
 After the public Witdem services are running and `.env` contains the three
 provider keys, create a safe fictional scan and run the verifier:
 
