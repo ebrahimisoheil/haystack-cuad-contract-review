@@ -1,8 +1,10 @@
-# Haystack CUAD Contract Review with LiteLLM + Witdem
+# Witdem Intelligence for Haystack CUAD Contract Review
 
-`haystack-cuad-contract-review` is a reference application for building an
-observable, multi-model contract workflow with Haystack orchestration,
-LiteLLM model routing, optional CUAD ingestion, and Witdem analytics.
+`haystack-cuad-contract-review` is a [Witdem](https://github.com/ebrahimisoheil/witdem-oss)
+intelligence-layer showcase built on a multi-model contract workflow. Witdem
+connects the workflow's execution path, provider usage, latency, tokens, cost,
+and failures to the contract-review outcome. Haystack owns orchestration,
+LiteLLM owns model routing, and CUAD supplies optional real-world contract data.
 
 ## What it does
 
@@ -11,47 +13,50 @@ This reference application reviews fictional-company vendor SaaS agreements thro
 ## Architecture
 
 ~~~text
-Contract (PDF / scan / text)
-  -> Haystack Pipeline (31 visible components)
-       -> ConditionalRouter: native text or vision
-       -> extraction + normalization + clauses + typed terms
-       -> GPT judge -> focused retry loop (maximum 2 retries)
-       -> fictional playbook -> compliant or deviation branch
-       -> risk -> domain routing -> fallback -> judge/retry loop
-       -> final GPT gate -> approved or human-review branch
-       -> obligations when approved -> Pydantic result validation
-  -> ModelRegistry
-       -> official litellm-haystack LiteLLMChatGenerator
-       -> LiteLLM OCR endpoint for document input
-  -> declarative role -> provider/model
+Witdem intelligence layer
+  <- execution graph, retries, tokens, cost, failures, business outcome
+Haystack workflow layer (31 visible components)
+  -> input and quality routing
+  -> extraction, review, retry loops, final decision
+LiteLLM model gateway
+  -> Mistral vision/OCR
+  -> DeepSeek text processing
+  -> OpenAI judging and final gates
 ~~~
 
-Haystack owns orchestration and branching. LiteLLM owns model/provider access. Components request a logical role rather than a provider. Model routing is declared in [model_routing.yaml](contract_review_agent/app/model_routing.yaml), so model experiments do not require graph changes.
+The application remains framework-centric: Haystack owns orchestration and
+branching, and LiteLLM owns model/provider access. Witdem sits above both as the
+intelligence layer, turning their technical execution into an explainable run
+with product-goal evidence. Components request a logical role rather than a
+provider. Model routing is declared in
+[model_routing.yaml](contract_review_agent/app/model_routing.yaml), so model
+experiments do not require graph changes.
 
-The implementation targets haystack-ai 3.1.x and the maintained litellm-haystack 1.2.x integration. It uses Haystack 3 chat generators and avoids the legacy generators removed in Haystack 3.
+## Witdem intelligence layer
 
-## Haystack showcase
-
-This repository is designed to make the Haystack execution model visible, not
-to hide the workflow behind one agent call. The graph contains typed business
-components, `ConditionalRouter` branches, joiners, bounded retry loops, and one
-shared role registry built on the official `litellm-haystack` integration.
+This repository is first a Witdem showcase: one heterogeneous execution becomes
+a connected account of what ran, which models were involved, what they cost,
+where retries occurred, and whether the application achieved its declared
+business goal. The committed [Witdem contract](.witdem/witdem.yaml) gives the
+technical trace application meaning without hard-coding analytics into the
+Haystack components.
 
 The strongest live demo uses a raster-only PDF so one execution visibly crosses
-all three model roles:
+Mistral, DeepSeek, and OpenAI while Witdem preserves the complete Haystack path:
 
 ~~~text
-Haystack input and quality routing
-  -> Mistral document OCR through LiteLLM
-  -> DeepSeek extraction and normalization through LiteLLMChatGenerator
-  -> GPT-5.4 quality, risk, and final gates through LiteLLMChatGenerator
-  -> Witdem execution graph, retries, tokens, cost, and business outcome
+Witdem execution intelligence and business outcome
+  <- Haystack input, quality routing, branches, and retries
+       <- Mistral OCR through LiteLLM
+       <- DeepSeek extraction and normalization through LiteLLMChatGenerator
+       <- GPT-5.4 quality, risk, and final gates through LiteLLMChatGenerator
 ~~~
 
-After the Witdem services are running and `.env` contains the three provider
-keys, create a safe fictional scan and run the verifier:
+After the public Witdem services are running and `.env` contains the three
+provider keys, create a safe fictional scan and run the verifier:
 
 ~~~bash
+npx -y witdem@0.2.0 up
 uv run --extra dev python examples/create_showcase_scan.py
 uv run contract-review-showcase output/showcase/scanned-vendor-saas.pdf
 ~~~
@@ -60,6 +65,17 @@ The command exits unsuccessfully unless Witdem exposes the new Haystack run and
 attributes DeepSeek, Mistral, OpenAI, model calls, tokens, and measured cost. It
 prints a direct dashboard URL for the execution graph. The contract's approval
 result is intentionally not a pass/fail condition—the integration evidence is.
+
+## Haystack workflow
+
+This repository is designed to make the Haystack execution model visible, not
+to hide the workflow behind one agent call. The graph contains typed business
+components, `ConditionalRouter` branches, joiners, bounded retry loops, and one
+shared role registry built on the official `litellm-haystack` integration.
+
+The implementation targets haystack-ai 3.1.x and the maintained
+litellm-haystack 1.2.x integration. It uses Haystack 3 chat generators and
+avoids the legacy generators removed in Haystack 3.
 
 ## Model routing
 
@@ -124,10 +140,15 @@ uv run --extra dev python examples/run_demo_suite.py
 The application loads `.env` automatically. The default deterministic mode
 does not call model providers and does not require API keys.
 
-This showcase pins Witdem SDK 0.3.0 to the exact [public source commit](https://github.com/ebrahimisoheil/witdem-oss/commit/d15be4572280f5f7f05bda145f2af6903fe79118) that
-contains the current Haystack/LiteLLM instrumentation and progressive execution
-graph support. The commit pin keeps installation reproducible until the matching
-0.3.x SDK release is available from PyPI.
+Witdem is installed exclusively from its public package—this project does not
+use a Git dependency or require a local Witdem source checkout. The pinned SDK
+includes the Haystack and LiteLLM integrations used by the showcase. Its public
+source and documentation are available in
+[witdem-oss](https://github.com/ebrahimisoheil/witdem-oss).
+
+~~~bash
+python -m pip install "witdem-sdk[haystack,litellm]==0.2.0"
+~~~
 
 To use a standard virtual environment instead:
 
@@ -229,16 +250,11 @@ Every run emits total and per-stage latency, configured model per stage, LiteLLM
 
 Deterministic mode reports zero model tokens and cost because it makes no provider calls. It does not present estimates as actual usage.
 
-To inspect runs in Witdem, start a matching 0.3.0 server from a local checkout
-of the linked Witdem source commit, then run the examples:
+To inspect runs in Witdem, start the public version-matched backend package, then
+run the examples:
 
 ~~~bash
-cd /path/to/witdem-oss
-docker build -f Dockerfile.witdem -t witdem-local:0.3.0 .
-WITDEM_ANALYTICS_IMAGE=witdem-local:0.3.0 \
-  docker compose up -d witdem elt-worker dashboard
-
-cd /path/to/haystack-cuad-contract-review
+npx -y witdem@0.2.0 up
 uv run --extra dev python examples/run_demo_suite.py
 ~~~
 

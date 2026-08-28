@@ -766,7 +766,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4.4,<5" },
-    { name = "witdem-sdk", extras = ["haystack", "litellm"], git = "https://github.com/ebrahimisoheil/witdem-oss.git?subdirectory=witdem-sdk&rev=d15be4572280f5f7f05bda145f2af6903fe79118" },
+    { name = "witdem-sdk", extras = ["haystack", "litellm"], specifier = "==0.2.0" },
 ]
 provides-extras = ["dev"]
 
@@ -2489,8 +2489,8 @@ wheels = [
 
 [[package]]
 name = "witdem-sdk"
-version = "0.3.0"
-source = { git = "https://github.com/ebrahimisoheil/witdem-oss.git?subdirectory=witdem-sdk&rev=d15be4572280f5f7f05bda145f2af6903fe79118#d15be4572280f5f7f05bda145f2af6903fe79118" }
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -2499,6 +2499,10 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/78/5d05325eb4b9cd2bc4d62b6e07d5a875a5461a47659f843d81f8837d7fdb/witdem_sdk-0.2.0.tar.gz", hash = "sha256:12df12e6590c2141324bcc54eea0225df9ed80bb436fbb3175ba3ae1092ee145", size = 64991, upload-time = "2026-08-26T20:51:09.552Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/3b/0cc2b023c0014343bae316edd11ec1f337661a317b997ae7e0fec04cee21/witdem_sdk-0.2.0-py3-none-any.whl", hash = "sha256:d4ce3fa9533e0f07c26fa020fae3458b21152d3d992ae13c9ea4c5620a90553e", size = 57880, upload-time = "2026-08-26T20:51:08.204Z" },
 ]
 
 [package.optional-dependencies]

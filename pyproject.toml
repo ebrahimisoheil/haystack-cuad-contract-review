@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "haystack-cuad-contract-review"
 version = "0.1.0"
-description = "Observable Haystack and LiteLLM workflow for CUAD contract review"
+description = "Witdem intelligence showcase for a Haystack and LiteLLM CUAD contract-review workflow"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -25,7 +25,7 @@ dependencies = [
   "pypdf>=6.0,<7",
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
-  "witdem-sdk[haystack,litellm] @ git+https://github.com/ebrahimisoheil/witdem-oss.git@d15be4572280f5f7f05bda145f2af6903fe79118#subdirectory=witdem-sdk",
+  "witdem-sdk[haystack,litellm]==0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -43,9 +43,6 @@ cuad-data = "contract_review_agent.app.ingestion.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["contract_review_agent"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.pytest.ini_options]
 addopts = "-q"
