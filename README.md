@@ -8,7 +8,7 @@ LiteLLM owns model routing, and CUAD supplies optional real-world contract data.
 
 ## What it does
 
-This reference application reviews fictional-company vendor SaaS agreements through a realistic, observable contract-operations workflow. It selects native PDF extraction or Mistral OCR, uses DeepSeek for text transformations, applies a fictional playbook, asks OpenAI GPT-5.4 to judge extraction quality, risk, fallback acceptability, and the final state, then returns an evidence-backed machine-readable audit and post-signature obligations.
+This reference application reviews fictional-company vendor SaaS agreements through a realistic, intelligence-enabled contract-operations workflow. It selects native PDF extraction or Mistral OCR, uses DeepSeek for text transformations, applies a fictional playbook, asks OpenAI GPT-5.4 to judge extraction quality, risk, fallback acceptability, and the final state, then returns an evidence-backed machine-readable audit and post-signature obligations.
 
 ## Architecture
 
@@ -338,7 +338,7 @@ uv run --extra dev pytest
 
 The actual result also contains all normalized terms, clauses, fallbacks, obligations, errors, and run metrics.
 
-## Observability
+## Witdem intelligence and measurement
 
 Every run emits total and per-stage latency, configured model per stage, LiteLLM token/cost telemetry, retries, full branch path, extraction confidence, deviation and escalation counts, unresolved fields, evidence completeness, and explicit business outcomes.
 

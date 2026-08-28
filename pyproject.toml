@@ -9,7 +9,7 @@ description = "Witdem intelligence showcase for a Haystack and LiteLLM CUAD cont
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-keywords = ["haystack", "litellm", "cuad", "contract-review", "observability"]
+keywords = ["haystack", "litellm", "cuad", "contract-review", "workflow-intelligence"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: MIT License",
