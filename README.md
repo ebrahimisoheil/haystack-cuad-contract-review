@@ -52,6 +52,58 @@ Witdem execution intelligence and business outcome
        <- GPT-5.4 quality, risk, and final gates through LiteLLMChatGenerator
 ~~~
 
+### What Witdem produced
+
+Every graph below was produced by Witdem from one live, instrumented execution;
+it is not a hand-drawn architecture diagram or custom visualization implemented
+by this repository. Witdem observed the Haystack and LiteLLM telemetry,
+normalized the execution hierarchy, attached each provider/model call to its
+owning component and retry attempt, grouped the long workflow into expandable
+phases, and applied the YAML contract to connect the technical run to its
+business result.
+
+**1. Witdem shows the scanned PDF taking Haystack's vision branch and attributes
+the OCR call, latency, and cost to Mistral.**
+
+![Witdem execution graph showing scanned PDF routing through Haystack to Mistral OCR](docs/images/witdem-01-mistral-ocr-route.png)
+
+**2. Witdem attaches the DeepSeek calls to text normalization, agreement
+classification, and metadata extraction.**
+
+![Witdem execution graph showing DeepSeek text normalization, agreement classification, and metadata extraction](docs/images/witdem-02-deepseek-normalization.png)
+
+**3. Witdem preserves the extraction sequence from DeepSeek clause and term
+processing into the GPT-5.4 extraction-quality gate.**
+
+![Witdem execution graph showing DeepSeek clause extraction and an OpenAI extraction judge](docs/images/witdem-03-extraction-judge.png)
+
+**4. Witdem makes the playbook and risk branch visible and attributes both judge
+calls to GPT-5.4.**
+
+![Witdem execution graph showing the playbook evaluator, deviation router, and OpenAI risk judge](docs/images/witdem-04-playbook-risk.png)
+
+**5. Witdem renders repeated fallback generation and judging vertically as real
+retry attempts, with every DeepSeek and GPT-5.4 call attached to the attempt
+that caused it.**
+
+![Witdem execution graph showing two fallback retry attempts with DeepSeek generation and OpenAI judging](docs/images/witdem-05-fallback-retries.png)
+
+**6. Witdem shows the final manual-review branch skipping obligation extraction
+before the typed result is assembled.**
+
+![Witdem execution graph showing the manual-review branch, skipped obligations, and result assembly](docs/images/witdem-06-result-assembly.png)
+
+**7. Witdem turns the completed execution into application intelligence: a
+manual-review disposition, three passing contract checks, an achieved product
+goal, and six recorded measurements.**
+
+![Witdem business layer showing review disposition, contract checks, business result, achieved product goal, and measurements](docs/images/witdem-07-business-outcome.png)
+
+`manual_review_required` and `Product goal: Achieved` are intentionally
+compatible. The declared goal is to complete an evidence-backed approval **or
+escalation** route; it does not require every contract to be automatically
+approved.
+
 After the public Witdem services are running and `.env` contains the three
 provider keys, create a safe fictional scan and run the verifier:
 
