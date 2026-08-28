@@ -1,0 +1,38 @@
+version: 1
+
+service:
+  name: haystack-cuad-contract-review-tests
+  runtime: haystack
+
+telemetry:
+  # Reserved discard port: exercises instrumentation without reaching a live
+  # developer dashboard. The SDK exporter is non-blocking and failure-tolerant.
+  endpoint: http://127.0.0.1:9
+  mode: auto
+  capture_content: false
+
+default_contract: contract_review
+
+contracts:
+  contract_review:
+    mode: expression
+    artifact:
+      name: Contract review result
+      valid:
+        all:
+          - non_empty: $.result_assembler.result.contract_id
+          - $.result_assembler.result.outcome.review_completed
+    decision:
+      name: Review disposition
+      observed: $.result_assembler.result.final_decision
+      reason: $.result_assembler.result.decision_explanation
+      outcomes:
+        approved: Approved without exceptions.
+        approved_with_exceptions: Approved with documented exceptions.
+        manual_review_required: Escalated for human review.
+        rejected_by_playbook: Rejected by the fictional playbook.
+        processing_failed: The workflow did not complete the review.
+    application_outcome:
+      status: $.result_assembler.result.final_decision
+    product_goal:
+      achieved: $.result_assembler.result.outcome.objective_met

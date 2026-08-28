@@ -1,0 +1,85 @@
+version: 1
+
+service:
+  name: haystack-cuad-contract-review
+  description: Haystack and LiteLLM workflow for contract review against a fictional playbook.
+  runtime: haystack
+
+telemetry:
+  endpoint: http://localhost:4318
+  mode: auto
+  capture_content: false
+
+default_contract: contract_review
+
+contracts:
+  contract_review:
+    mode: expression
+    description: Review a contract, preserve supporting evidence, and produce an approval or escalation route.
+
+    application_outcome:
+      status: $.result_assembler.result.final_decision
+
+    artifact:
+      name: Contract review result
+      description: The structured review returned by the Haystack workflow.
+      valid:
+        all:
+          - non_empty: $.result_assembler.result.contract_id
+          - $.result_assembler.result.outcome.review_completed
+
+    decision:
+      name: Review disposition
+      description: The approval, exception, escalation, rejection, or processing decision.
+      observed: $.result_assembler.result.final_decision
+      reason: $.result_assembler.result.decision_explanation
+      outcomes:
+        approved: Approved without exceptions.
+        approved_with_exceptions: Approved with documented exceptions.
+        manual_review_required: Escalated for human review.
+        rejected_by_playbook: Rejected by the fictional playbook.
+        processing_failed: The workflow did not complete the review.
+
+    product_goal:
+      name: Evidence-backed contract review completed
+      description: Apply the fictional playbook and return an evidence-backed approval or escalation route.
+      achieved: $.result_assembler.result.outcome.objective_met
+
+    evaluations:
+      - name: Evidence completeness
+        description: Share of evidence-bearing result items with page and source text.
+        score: $.result_assembler.result.metrics.evidence_completeness
+        target: 0.8
+        direction: higher_is_better
+        unit: ratio
+      - name: Extraction confidence
+        description: Confidence assigned to the document extraction stage.
+        score: $.result_assembler.result.metrics.extraction_confidence
+        target: 0.7
+        direction: higher_is_better
+        unit: ratio
+
+    metrics:
+      - name: Workflow retries
+        value: $.result_assembler.result.metrics.retries
+        unit: retries
+      - name: Deviations found
+        value: $.result_assembler.result.metrics.deviation_count
+        unit: deviations
+      - name: Escalations
+        value: $.result_assembler.result.metrics.escalation_count
+        unit: review_areas
+      - name: Model input tokens
+        value: $.result_assembler.result.metrics.total_input_tokens
+        unit: tokens
+      - name: Model output tokens
+        value: $.result_assembler.result.metrics.total_output_tokens
+        unit: tokens
+      - name: Application-reported model cost
+        value: $.result_assembler.result.metrics.estimated_cost_usd
+        unit: USD
+
+    attributes:
+      contract_id: $.result_assembler.result.contract_id
+      agreement_type: $.result_assembler.result.agreement_type
+      final_decision: $.result_assembler.result.final_decision

@@ -1,0 +1,22 @@
+models:
+  text:
+    provider: litellm
+    model: deepseek/deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+    response_format: json_object
+    provider_retries: 0
+    fallback_models: []
+  vision:
+    provider: litellm
+    model: mistral/mistral-ocr-latest
+    api_key_env: MISTRAL_API_KEY
+    endpoint: ocr
+    provider_retries: 0
+    fallback_models: []
+  judge:
+    provider: litellm
+    model: openai/gpt-5.4
+    api_key_env: OPENAI_API_KEY
+    response_format: json_object
+    provider_retries: 0
+    fallback_models: []

@@ -1,0 +1,36 @@
+name: Fictional Acme Vendor SaaS Review Playbook
+version: 1.0
+fictional: true
+agreement_type: Vendor SaaS Agreement
+rules:
+  term:
+    initial_months_max: 12
+    renewal_months_max: 12
+    renewal_notice_days_min: 30
+  termination:
+    for_cause_required: true
+    for_convenience_preferred: true
+    notice_days_max: 60
+  liability:
+    cap_required: true
+    preferred_basis: fees_paid_prior_12_months
+  indemnity:
+    unlimited_unilateral_customer_indemnity_allowed: false
+  governing_law:
+    allowed: [Delaware, New York]
+  assignment:
+    unrestricted_allowed: false
+  security:
+    commitments_required: true
+    dpa_language_required_when_applicable: true
+  sla:
+    availability_required: true
+    remedy_required_when_applicable: true
+  payment:
+    minimum_net_days: 30
+    unusual_prepayment_requires_approval: true
+routing:
+  legal: [termination, liability, indemnity, governing_law, assignment]
+  finance: [payment, credits, fees, prepayment]
+  security/privacy: [security, dpa, breach_notification, audit_rights]
+  procurement/business_owner: [term, renewal, sla, commercial]
