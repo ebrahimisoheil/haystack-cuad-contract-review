@@ -52,7 +52,7 @@ After the Witdem services are running and `.env` contains the three provider
 keys, create a safe fictional scan and run the verifier:
 
 ~~~bash
-uv run python examples/create_showcase_scan.py
+uv run --extra dev python examples/create_showcase_scan.py
 uv run contract-review-showcase output/showcase/scanned-vendor-saas.pdf
 ~~~
 
@@ -118,7 +118,7 @@ The locked `uv` workflow is the most reproducible setup:
 cd haystack-cuad-contract-review
 uv sync --locked --extra dev
 cp .env.example .env
-uv run python examples/run_demo_suite.py
+uv run --extra dev python examples/run_demo_suite.py
 ~~~
 
 The application loads `.env` automatically. The default deterministic mode
@@ -181,7 +181,7 @@ CONTRACT_REVIEW_MODE=live .venv/bin/python -m contract_review_agent.app.main pat
 Run verification:
 
 ~~~bash
-.venv/bin/pytest
+uv run --extra dev pytest
 ~~~
 
 ## Example output
@@ -235,10 +235,11 @@ of the linked Witdem source commit, then run the examples:
 ~~~bash
 cd /path/to/witdem-oss
 docker build -f Dockerfile.witdem -t witdem-local:0.3.0 .
-WITDEM_IMAGE=witdem-local:0.3.0 docker compose -f npm/compose.yaml up -d
+WITDEM_ANALYTICS_IMAGE=witdem-local:0.3.0 \
+  docker compose up -d witdem elt-worker dashboard
 
 cd /path/to/haystack-cuad-contract-review
-uv run python examples/run_demo_suite.py
+uv run --extra dev python examples/run_demo_suite.py
 ~~~
 
 The default [Witdem contract](.witdem/witdem.yaml) exports to

@@ -6,7 +6,7 @@ Thank you for improving `haystack-cuad-contract-review`.
 
 ~~~bash
 uv sync --locked --extra dev
-uv run pytest
+uv run --extra dev pytest
 uv build
 ~~~
 
