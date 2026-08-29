@@ -101,6 +101,7 @@ class ResultAssembler(Stage):
                     "decision_explanation", "Processing did not reach the final gate."
                 ),
                 review_areas=ctx.get("review_areas", []),
+                domain_reviews=ctx.get("domain_reviews", []),
                 obligations=ctx.get("obligations", []),
                 outcome=outcome,
                 metrics=metrics,

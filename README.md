@@ -193,26 +193,61 @@ The defaults deliberately follow the required DeepSeek/Mistral/GPT-5.4 specializ
 
 ## Workflow and branches
 
-~~~text
-Input
-  -> quality detection
-  -> native text? --yes--> native extractor ---------+
-                   no----> Mistral OCR via LiteLLM --+
-  -> DeepSeek normalize -> classify -> metadata -> clauses -> terms
-  -> GPT-5.4 extraction judge
-       fail + retries left -> focused DeepSeek re-extraction -> judge
-       pass / retry cap reached -> playbook
-  -> deviations?
-       no  -> straight-through candidate ----------------------+
-       yes -> GPT-5.4 risk -> legal / finance / security / business
-            -> DeepSeek fallback -> GPT-5.4 fallback judge
-                 fail + retries left -> revise fallback --------+
-                 pass / retry cap reached ----------------------+
-  -> GPT-5.4 final gate
-       approved / approved_with_exceptions -> DeepSeek obligations
-       manual / rejected / failed -> obligations skipped
-  -> strict result assembler
-~~~
+```mermaid
+flowchart TD
+    I[Contract input] --> Q[Quality classifier]
+    Q --> X{Extraction route}
+    X -->|native text| N[Native PDF extractor]
+    X -->|scan or weak text| V[Mistral document vision]
+    N --> DJ((Document join))
+    V --> DJ
+    DJ --> T[Normalize, classify, metadata, clauses, terms]
+    T --> EJ{GPT-5.4 extraction gate}
+    EJ -->|retry| RE[Focused DeepSeek re-extraction]
+    RE --> EJ
+    EJ -->|accepted or retry cap| PB[Playbook evaluation]
+    PB --> D{Deviations?}
+    D -->|none| ST[Straight-through candidate]
+    D -->|found| RJ[GPT-5.4 risk judge]
+    RJ --> RT{Risk tier}
+    RT -->|low| LA[Low-risk auto-accept route]
+    RT -->|medium| ER((Elevated-risk join))
+    RT -->|high| HG[Mandatory human-review gate]
+    HG --> ER
+    ER --> DF{Domain fan-out}
+    DF --> L[Legal review]
+    DF --> F[Finance review]
+    DF --> S[Security and privacy review]
+    DF --> B[Procurement and business review]
+    L --> DRJ((Domain review join))
+    F --> DRJ
+    S --> DRJ
+    B --> DRJ
+    DRJ --> DA[Domain decision aggregate]
+    DA --> FG[DeepSeek fallback drafting]
+    FG --> FJ{GPT-5.4 fallback gate}
+    FJ -->|revise| FG
+    FJ -->|accepted or retry cap| FI((Final candidate join))
+    ST --> FI
+    LA --> FI
+    FI --> G{GPT-5.4 final gate}
+    G -->|approved or exceptions| O[Extract obligations]
+    G -->|manual, rejected, failed| SO[Skip obligations]
+    O --> R((Result join))
+    SO --> R
+    R --> A[Strict audit result]
+```
+
+[Open the exact Haystack socket-level topology](docs/images/haystack-workflow-graph.svg),
+generated directly from `build_pipeline()`, to inspect every typed connection,
+router output, loop, and joiner.
+
+The four domain reviewers above are independent Haystack components, not labels
+written by a single routing step. Only domains with relevant deviations perform
+model work. Their decisions converge into a typed `domain_reviews` result before
+fallback drafting. High-risk contracts pass through a policy gate that prevents
+an LLM from approving them without human review; low-risk deviations can bypass
+negotiation entirely.
 
 Final states are approved, approved_with_exceptions, manual_review_required, rejected_by_playbook, and processing_failed.
 
@@ -326,6 +361,22 @@ uv run --extra dev pytest
   ],
   "final_decision": "approved_with_exceptions",
   "review_areas": ["legal", "finance"],
+  "domain_reviews": [
+    {
+      "area": "legal",
+      "decision": "negotiate",
+      "highest_risk": "medium",
+      "deviation_count": 2,
+      "rationale": "Two legal deviations require fallback language."
+    },
+    {
+      "area": "finance",
+      "decision": "negotiate",
+      "highest_risk": "medium",
+      "deviation_count": 1,
+      "rationale": "Net 15 payment terms require a commercial exception."
+    }
+  ],
   "outcome": {
     "review_completed": true,
     "evidence_complete": true,
@@ -336,7 +387,8 @@ uv run --extra dev pytest
 }
 ~~~
 
-The actual result also contains all normalized terms, clauses, fallbacks, obligations, errors, and run metrics.
+The actual result also contains all normalized terms, clauses, fallbacks,
+obligations, errors, and run metrics.
 
 ## Witdem intelligence and measurement
 

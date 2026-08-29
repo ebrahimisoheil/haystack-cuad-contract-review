@@ -120,6 +120,8 @@ class FinalReviewJudge(Stage):
                     {
                         "deviations": ctx.get("deviations", []),
                         "review_areas": ctx.get("review_areas", []),
+                        "domain_reviews": ctx.get("domain_reviews", []),
+                        "mandatory_human_review": bool(ctx.get("mandatory_human_review")),
                         "errors": ctx.get("errors", []),
                     }
                 ),
@@ -139,6 +141,12 @@ class FinalReviewJudge(Stage):
                     decision, explanation = "approved_with_exceptions", "Fallbacks and routed exceptions require recorded approval."
                 else:
                     decision, explanation = "approved", "All evaluated clauses conform to the fictional playbook."
+            if ctx.get("mandatory_human_review") and decision in {
+                "approved",
+                "approved_with_exceptions",
+            }:
+                decision = "manual_review_required"
+                explanation = "The high-risk policy gate requires a human reviewer before approval."
             ctx["final_decision"] = decision
             ctx["decision_explanation"] = explanation
             ctx["approved_for_obligations"] = decision in {"approved", "approved_with_exceptions"}

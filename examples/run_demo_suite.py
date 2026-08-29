@@ -6,7 +6,12 @@ from tempfile import TemporaryDirectory
 
 from contract_review_agent.app.config import Settings
 from contract_review_agent.app.pipeline import run_review
-from tests.fixtures import COMPLIANT_CONTRACT, DEVIATING_CONTRACT, make_native_pdf, make_scanned_pdf
+from tests.fixtures import (
+    COMPLIANT_CONTRACT,
+    DEVIATING_CONTRACT,
+    make_native_pdf,
+    make_scanned_pdf,
+)
 
 
 def main() -> None:
@@ -17,6 +22,13 @@ def main() -> None:
             "clean_native": make_native_pdf(root / "clean-native.pdf", COMPLIANT_CONTRACT),
             "clean_scanned": make_scanned_pdf(root / "clean-scanned.pdf", COMPLIANT_CONTRACT),
             "deviating_native": make_native_pdf(root / "deviating-native.pdf", DEVIATING_CONTRACT),
+            "high_risk_native": make_native_pdf(
+                root / "high-risk-native.pdf",
+                DEVIATING_CONTRACT.replace(
+                    "Aggregate liability is capped at fees paid in the prior 12 months.",
+                    "Vendor liability is unlimited.",
+                ),
+            ),
         }
         retry_text = COMPLIANT_CONTRACT.replace(
             "[DPA]\nThe parties incorporate the Customer Data Processing Addendum when personal data is processed.\n",
@@ -36,6 +48,7 @@ def main() -> None:
                 "decision": result["final_decision"],
                 "deviations": [item["clause"] for item in result["deviations"]],
                 "review_areas": result["review_areas"],
+                "domain_reviews": result["domain_reviews"],
                 "retries": result["metrics"]["retries"],
                 "latency_ms": result["metrics"]["total_runtime_ms"],
                 "tokens": result["metrics"]["total_input_tokens"] + result["metrics"]["total_output_tokens"],

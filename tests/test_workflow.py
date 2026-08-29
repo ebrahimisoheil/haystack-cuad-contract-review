@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from contract_review_agent.app.config import Settings
-from contract_review_agent.app.pipeline import run_review
 from contract_review_agent.app.components.clauses import ClauseExtractor
-from contract_review_agent.app.components.routing import FallbackGenerator
+from contract_review_agent.app.components.routing import (
+    DomainReviewDispatcher,
+    FallbackGenerator,
+)
+from contract_review_agent.app.config import Settings
 from contract_review_agent.app.model_registry import ModelRegistry
+from contract_review_agent.app.pipeline import run_review
+
+from .fixtures import DEVIATING_CONTRACT, make_native_pdf
 
 
 def review(path: Path) -> dict:
@@ -36,12 +41,57 @@ def test_deviations_trigger_legal_and_finance_routes(deviating_contract: Path) -
     result = review(deviating_contract)
     assert result["final_decision"] == "approved_with_exceptions"
     assert set(result["review_areas"]) == {"legal", "finance"}
+    assert {item["area"] for item in result["domain_reviews"]} == {
+        "legal",
+        "finance",
+    }
+    assert all(item["decision"] == "negotiate" for item in result["domain_reviews"])
+    assert "domain_fanout:legal" in result["metrics"]["branch_path"]
+    assert "legal_domain_review" in result["metrics"]["branch_path"]
+    assert "finance_domain_review" in result["metrics"]["branch_path"]
+    assert "domain_review_aggregator" in result["metrics"]["branch_path"]
     assert {item["clause"] for item in result["deviations"]} >= {
         "termination",
         "governing_law",
         "payment",
     }
     assert all(item["recommended_fallback"] for item in result["deviations"])
+
+
+def test_high_risk_policy_gate_requires_human_review(tmp_path: Path) -> None:
+    source = DEVIATING_CONTRACT.replace(
+        "Aggregate liability is capped at fees paid in the prior 12 months.",
+        "Vendor liability is unlimited.",
+    )
+    path = make_native_pdf(tmp_path / "high-risk-native.pdf", source)
+
+    result = review(path)
+
+    assert result["final_decision"] == "manual_review_required"
+    assert "high_risk_policy_gate" in result["metrics"]["branch_path"]
+    assert "risk_policy:mandatory_human_review" in result["metrics"]["branch_path"]
+    assert any(
+        item["area"] == "legal" and item["decision"] == "escalate"
+        for item in result["domain_reviews"]
+    )
+
+
+def test_domain_dispatcher_emits_only_relevant_branches() -> None:
+    settings = Settings(mode="deterministic")
+    dispatcher = DomainReviewDispatcher(settings, ModelRegistry(settings))
+    context = {
+        "deviations": [
+            {"review_area": "legal"},
+            {"review_area": "security/privacy"},
+        ],
+        "stage_metrics": [],
+        "branch_path": [],
+    }
+
+    outputs = dispatcher.run(context)
+
+    assert set(outputs) == {"context", "legal_contexts", "security_contexts"}
+    assert outputs["context"]["review_areas"] == ["legal", "security/privacy"]
 
 
 def test_missing_clause_retries_with_focused_text(retry_contract: Path) -> None:
@@ -99,4 +149,6 @@ def test_live_fallback_shape_accepts_list(monkeypatch) -> None:
         "branch_path": [],
     }
     result = FallbackGenerator(settings, models).run(context)["context"]
-    assert result["deviations"][0]["recommended_fallback"] == "Use Net 30 payment terms."
+    assert (
+        result["deviations"][0]["recommended_fallback"] == "Use Net 30 payment terms."
+    )

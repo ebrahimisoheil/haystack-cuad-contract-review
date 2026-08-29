@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from haystack import Pipeline
-from haystack.components.joiners import BranchJoiner
+from haystack.components.joiners import BranchJoiner, ListJoiner
 from haystack.components.routers import ConditionalRouter
 from witdem_sdk.integrations.haystack import instrument
 from witdem_sdk.integrations.litellm import install_litellm
@@ -35,7 +35,15 @@ from .components.normalization import (
 from .components.obligations import ObligationExtractor, SkipObligations
 from .components.playbook import PlaybookEvaluator
 from .components.result import ResultAssembler
-from .components.routing import FallbackGenerator, NoEscalationRoute, ReviewRouter
+from .components.routing import (
+    DomainReviewAggregator,
+    DomainReviewDispatcher,
+    DomainReviewer,
+    FallbackGenerator,
+    HighRiskPolicyGate,
+    LowRiskAcceptanceRoute,
+    NoEscalationRoute,
+)
 from .config import Settings
 from .ingestion.evaluation import (
     CUAD_CATEGORY_F1_TARGET,
@@ -201,7 +209,41 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
         ),
         "straight_through": NoEscalationRoute(settings, models),
         "risk_judge": RiskJudge(settings, models),
-        "review_router": ReviewRouter(settings, models),
+        "risk_tier_router": ConditionalRouter(
+            [
+                {
+                    "condition": "{{ context.highest_risk == 'low' }}",
+                    "output": "{{ context }}",
+                    "output_name": "low_context",
+                    "output_type": Context,
+                },
+                {
+                    "condition": "{{ context.highest_risk == 'medium' }}",
+                    "output": "{{ context }}",
+                    "output_name": "medium_context",
+                    "output_type": Context,
+                },
+                {
+                    "condition": "{{ True }}",
+                    "output": "{{ context }}",
+                    "output_name": "high_context",
+                    "output_type": Context,
+                },
+            ],
+            validate_output_type=True,
+        ),
+        "low_risk_acceptance": LowRiskAcceptanceRoute(settings, models),
+        "high_risk_policy_gate": HighRiskPolicyGate(settings, models),
+        "elevated_risk_joiner": BranchJoiner(Context),
+        "domain_review_dispatcher": DomainReviewDispatcher(settings, models),
+        "legal_domain_review": DomainReviewer(settings, models, "legal"),
+        "finance_domain_review": DomainReviewer(settings, models, "finance"),
+        "security_domain_review": DomainReviewer(settings, models, "security/privacy"),
+        "business_domain_review": DomainReviewer(
+            settings, models, "procurement/business_owner"
+        ),
+        "domain_review_joiner": ListJoiner(list[Context]),
+        "domain_review_aggregator": DomainReviewAggregator(settings, models),
         "fallback_input_joiner": BranchJoiner(Context),
         "fallback_generator": FallbackGenerator(settings, models),
         "fallback_judge": FallbackJudge(settings, models),
@@ -255,8 +297,39 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
     pipeline.connect("deviation_router.compliant_context", "straight_through.context")
     pipeline.connect("straight_through.context", "final_input_joiner.value")
     pipeline.connect("deviation_router.deviating_context", "risk_judge.context")
-    pipeline.connect("risk_judge.context", "review_router.context")
-    pipeline.connect("review_router.context", "fallback_input_joiner.value")
+    pipeline.connect("risk_judge.context", "risk_tier_router.context")
+    pipeline.connect("risk_tier_router.low_context", "low_risk_acceptance.context")
+    pipeline.connect("low_risk_acceptance.context", "final_input_joiner.value")
+    pipeline.connect("risk_tier_router.medium_context", "elevated_risk_joiner.value")
+    pipeline.connect("risk_tier_router.high_context", "high_risk_policy_gate.context")
+    pipeline.connect("high_risk_policy_gate.context", "elevated_risk_joiner.value")
+    pipeline.connect("elevated_risk_joiner.value", "domain_review_dispatcher.context")
+    pipeline.connect(
+        "domain_review_dispatcher.legal_contexts", "legal_domain_review.contexts"
+    )
+    pipeline.connect(
+        "domain_review_dispatcher.finance_contexts",
+        "finance_domain_review.contexts",
+    )
+    pipeline.connect(
+        "domain_review_dispatcher.security_contexts",
+        "security_domain_review.contexts",
+    )
+    pipeline.connect(
+        "domain_review_dispatcher.business_contexts",
+        "business_domain_review.contexts",
+    )
+    pipeline.connect("legal_domain_review.contexts", "domain_review_joiner.values")
+    pipeline.connect("finance_domain_review.contexts", "domain_review_joiner.values")
+    pipeline.connect("security_domain_review.contexts", "domain_review_joiner.values")
+    pipeline.connect("business_domain_review.contexts", "domain_review_joiner.values")
+    pipeline.connect(
+        "domain_review_dispatcher.context", "domain_review_aggregator.context"
+    )
+    pipeline.connect(
+        "domain_review_joiner.values", "domain_review_aggregator.review_contexts"
+    )
+    pipeline.connect("domain_review_aggregator.context", "fallback_input_joiner.value")
     pipeline.connect(
         "fallback_retry_router.retry_context", "fallback_input_joiner.value"
     )
@@ -330,6 +403,7 @@ def run_review(
             final_decision="processing_failed",
             decision_explanation="The workflow could not process the supplied input.",
             review_areas=[],
+            domain_reviews=[],
             obligations=[],
             outcome=BusinessOutcome(
                 review_completed=False,

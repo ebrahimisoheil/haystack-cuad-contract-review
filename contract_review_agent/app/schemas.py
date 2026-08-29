@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 Severity = Literal["low", "medium", "high"]
 Decision = Literal[
     "approved",
@@ -13,7 +12,9 @@ Decision = Literal[
     "rejected_by_playbook",
     "processing_failed",
 ]
-ReviewArea = Literal["legal", "finance", "security/privacy", "procurement/business_owner"]
+ReviewArea = Literal[
+    "legal", "finance", "security/privacy", "procurement/business_owner"
+]
 
 
 class StrictModel(BaseModel):
@@ -28,7 +29,7 @@ class Evidence(StrictModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
     @model_validator(mode="after")
-    def evidence_is_not_empty(self) -> "Evidence":
+    def evidence_is_not_empty(self) -> Evidence:
         if self.text is None and self.confidence > 0:
             raise ValueError("evidence without source text must have zero confidence")
         return self
@@ -89,6 +90,14 @@ class Deviation(StrictModel):
     review_area: ReviewArea
 
 
+class DomainReview(StrictModel):
+    area: ReviewArea
+    decision: Literal["accept", "negotiate", "escalate"]
+    highest_risk: Severity
+    deviation_count: int = Field(ge=1)
+    rationale: str
+
+
 class Obligation(StrictModel):
     type: str
     due_date_or_rule: str
@@ -134,7 +143,9 @@ class CuadCategoryEvaluation(StrictModel):
     category: str
     ground_truth_positive: bool
     predicted_positive: bool
-    outcome: Literal["true_positive", "false_positive", "false_negative", "true_negative"]
+    outcome: Literal[
+        "true_positive", "false_positive", "false_negative", "true_negative"
+    ]
     span_exact_match: float | None = Field(default=None, ge=0, le=1)
     span_token_f1: float | None = Field(default=None, ge=0, le=1)
 
@@ -179,6 +190,7 @@ class ContractReviewResult(StrictModel):
     final_decision: Decision
     decision_explanation: str
     review_areas: list[ReviewArea]
+    domain_reviews: list[DomainReview]
     obligations: list[Obligation]
     outcome: BusinessOutcome
     metrics: RunMetrics
