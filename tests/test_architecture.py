@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from haystack.components.routers import ConditionalRouter
 
+from contract_review_agent.app.config import Settings
 from contract_review_agent.app.pipeline import build_pipeline
 
 
@@ -37,3 +38,12 @@ def test_pipeline_has_visible_business_stages() -> None:
         "obligation_extractor",
         "result_assembler",
     } <= names
+
+
+def test_cuad_ground_truth_is_not_a_haystack_pipeline_input() -> None:
+    pipeline = build_pipeline(Settings(mode="deterministic"))
+    inputs = pipeline.inputs(include_components_with_connected_inputs=True)
+
+    assert all(
+        "ground_truth" not in component_inputs for component_inputs in inputs.values()
+    )

@@ -26,8 +26,13 @@ class ResultAssembler(Stage):
 
             evidence_items = [item["evidence"] for item in ctx.get("clauses", [])]
             evidence_items.extend(item["evidence"] for item in deviations)
-            evidence_items.extend(item["evidence"] for item in ctx.get("obligations", []))
-            complete = sum(bool(item.get("text")) and item.get("page") is not None for item in evidence_items)
+            evidence_items.extend(
+                item["evidence"] for item in ctx.get("obligations", [])
+            )
+            complete = sum(
+                bool(item.get("text")) and item.get("page") is not None
+                for item in evidence_items
+            )
             evidence_ratio = complete / len(evidence_items) if evidence_items else 0.0
             required_values = [
                 ctx.get("agreement_type"),
@@ -38,7 +43,9 @@ class ResultAssembler(Stage):
                 terms.get("governing_law"),
                 terms.get("payment_terms"),
             ]
-            unresolved = sum(value is None for value in required_values) + len(ctx.get("missing_clauses", []))
+            unresolved = sum(value is None for value in required_values) + len(
+                ctx.get("missing_clauses", [])
+            )
             stages = ctx.get("stage_metrics", [])
             total_input = sum(item.get("input_tokens", 0) for item in stages)
             total_output = sum(item.get("output_tokens", 0) for item in stages)
@@ -61,7 +68,8 @@ class ResultAssembler(Stage):
             metrics = RunMetrics(
                 total_runtime_ms=round(total_runtime, 3),
                 stages=stages,
-                retries=int(ctx.get("retries", 0)) + max(0, int(ctx.get("fallback_attempt", 1)) - 1),
+                retries=int(ctx.get("retries", 0))
+                + max(0, int(ctx.get("fallback_attempt", 1)) - 1),
                 branch_path=ctx.get("branch_path", []),
                 extraction_confidence=float(ctx.get("extraction_confidence", 0.0)),
                 deviation_count=len(deviations),
@@ -89,7 +97,9 @@ class ResultAssembler(Stage):
                 clauses=ctx.get("clauses", []),
                 deviations=deviations,
                 final_decision=ctx.get("final_decision", "processing_failed"),
-                decision_explanation=ctx.get("decision_explanation", "Processing did not reach the final gate."),
+                decision_explanation=ctx.get(
+                    "decision_explanation", "Processing did not reach the final gate."
+                ),
                 review_areas=ctx.get("review_areas", []),
                 obligations=ctx.get("obligations", []),
                 outcome=outcome,
@@ -101,7 +111,7 @@ class ResultAssembler(Stage):
         context = self.execute(context, "result_assembler", assemble)
         if "result" not in context:
             raise ValueError(f"result validation failed: {context.get('errors', [])}")
-        # Include the assembler metric in the validated result without changing runtime semantics.
+        # Include the assembler metric without changing runtime semantics.
         context["result"]["metrics"]["stages"] = context["stage_metrics"]
         context["result"]["metrics"]["branch_path"] = context["branch_path"]
         return {"result": context["result"]}

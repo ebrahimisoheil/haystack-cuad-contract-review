@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,19 +16,123 @@ from witdem_sdk.integrations.litellm import install_litellm
 from .components.clauses import ClauseExtractor, StructuredTermNormalizer
 from .components.common import Context
 from .components.document_input import DocumentQualityClassifier, InputLoader
-from .components.extraction import FocusedReExtractor, MistralDocumentExtractor, NativePDFExtractor
-from .components.judges import ExtractionJudge, FallbackJudge, FinalReviewJudge, RiskJudge
-from .components.normalization import AgreementClassifier, MetadataExtractor, TextNormalizer
+from .components.extraction import (
+    FocusedReExtractor,
+    MistralDocumentExtractor,
+    NativePDFExtractor,
+)
+from .components.judges import (
+    ExtractionJudge,
+    FallbackJudge,
+    FinalReviewJudge,
+    RiskJudge,
+)
+from .components.normalization import (
+    AgreementClassifier,
+    MetadataExtractor,
+    TextNormalizer,
+)
 from .components.obligations import ObligationExtractor, SkipObligations
 from .components.playbook import PlaybookEvaluator
 from .components.result import ResultAssembler
 from .components.routing import FallbackGenerator, NoEscalationRoute, ReviewRouter
 from .config import Settings
+from .ingestion.evaluation import (
+    CUAD_CATEGORY_F1_TARGET,
+    CUAD_NEGATIVE_LABEL_ACCURACY_TARGET,
+    CUAD_SPAN_TOKEN_F1_TARGET,
+    evaluate_cuad_ground_truth,
+)
 from .model_registry import ModelRegistry
 from .schemas import BusinessOutcome, ContractReviewResult, RunMetrics, StageMetric
 
 
-def _boolean_router(variable: str, true_name: str, false_name: str) -> ConditionalRouter:
+def _cuad_report_result(result: dict[str, Any]) -> dict[str, Any]:
+    review = result["result_assembler"]["result"]
+    evaluation = review["cuad_evaluation"]
+    optional_evaluations = {
+        "category_f1": evaluation.get("category_f1"),
+        "span_token_f1": evaluation.get("span_token_f1"),
+        "negative_label_accuracy": evaluation.get("negative_label_accuracy"),
+    }
+    assurance_checks = [
+        *(
+            [evaluation["category_f1"] >= CUAD_CATEGORY_F1_TARGET]
+            if evaluation.get("category_f1") is not None
+            else []
+        ),
+        *(
+            [evaluation["span_token_f1"] >= CUAD_SPAN_TOKEN_F1_TARGET]
+            if evaluation.get("span_token_f1") is not None
+            else []
+        ),
+        *(
+            [
+                evaluation["negative_label_accuracy"]
+                >= CUAD_NEGATIVE_LABEL_ACCURACY_TARGET
+            ]
+            if evaluation.get("negative_label_accuracy") is not None
+            else []
+        ),
+    ]
+    evaluation_assured = bool(assurance_checks) and all(assurance_checks)
+    application_evidence_sufficient = (
+        float(review["metrics"]["evidence_completeness"]) >= 0.8
+    )
+    return {
+        "contract": "cuad_contract_review",
+        "result": review["final_decision"],
+        "result_valid": bool(review.get("contract_id"))
+        and bool(review["outcome"]["review_completed"]),
+        "decision": review["final_decision"],
+        "product_goal_achieved": bool(review["outcome"]["objective_met"]),
+        "evidence_sufficient": application_evidence_sufficient and evaluation_assured,
+        "required_path_observed": bool(review["outcome"]["routing_complete"]),
+        "closest_blocker": (
+            review["final_decision"]
+            if not review["outcome"]["objective_met"]
+            else ("none" if evaluation_assured else "cuad_evaluation_below_target")
+        ),
+        "evaluations": {
+            key: value
+            for key, value in optional_evaluations.items()
+            if value is not None
+        },
+        "metrics": {
+            "evaluated_categories": evaluation["evaluated_categories"],
+            "true_positives": evaluation["true_positives"],
+            "false_positives": evaluation["false_positives"],
+            "false_negatives": evaluation["false_negatives"],
+            "true_negatives": evaluation["true_negatives"],
+            "evaluated_spans": evaluation["evaluated_spans"],
+            "workflow_retries": review["metrics"]["retries"],
+        },
+        "dimensions": {
+            "contract_id": review["contract_id"],
+            "agreement_type": review.get("agreement_type") or "unresolved",
+            "final_decision": review["final_decision"],
+            "evaluation_version": evaluation["evaluation_version"],
+        },
+    }
+
+
+def _cuad_result_reporter(
+    ground_truth: list[dict[str, Any]],
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    def report(result: dict[str, Any]) -> dict[str, Any]:
+        review = result["result_assembler"]["result"]
+        review["cuad_evaluation"] = evaluate_cuad_ground_truth(
+            review,
+            ground_truth,
+        ).model_dump(mode="json")
+        return _cuad_report_result(result)
+
+    return report
+
+
+def _boolean_router(
+    variable: str, true_name: str, false_name: str
+) -> ConditionalRouter:
     return ConditionalRouter(
         [
             {
@@ -86,20 +191,28 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
         "clause_extractor": ClauseExtractor(settings, models),
         "term_normalizer": StructuredTermNormalizer(settings, models),
         "extraction_judge": ExtractionJudge(settings, models),
-        "extraction_retry_router": _boolean_router("needs_retry", "retry_context", "accepted_context"),
+        "extraction_retry_router": _boolean_router(
+            "needs_retry", "retry_context", "accepted_context"
+        ),
         "focused_re_extractor": FocusedReExtractor(settings, models),
         "playbook_evaluator": PlaybookEvaluator(settings, models),
-        "deviation_router": _boolean_router("has_deviations", "deviating_context", "compliant_context"),
+        "deviation_router": _boolean_router(
+            "has_deviations", "deviating_context", "compliant_context"
+        ),
         "straight_through": NoEscalationRoute(settings, models),
         "risk_judge": RiskJudge(settings, models),
         "review_router": ReviewRouter(settings, models),
         "fallback_input_joiner": BranchJoiner(Context),
         "fallback_generator": FallbackGenerator(settings, models),
         "fallback_judge": FallbackJudge(settings, models),
-        "fallback_retry_router": _boolean_router("needs_retry", "retry_context", "accepted_context"),
+        "fallback_retry_router": _boolean_router(
+            "needs_retry", "retry_context", "accepted_context"
+        ),
         "final_input_joiner": BranchJoiner(Context),
         "final_judge": FinalReviewJudge(settings, models),
-        "decision_router": _boolean_router("approved", "approved_context", "manual_context"),
+        "decision_router": _boolean_router(
+            "approved", "approved_context", "manual_context"
+        ),
         "obligation_extractor": ObligationExtractor(settings, models),
         "skip_obligations": SkipObligations(settings, models),
         "result_input_joiner": BranchJoiner(Context),
@@ -110,7 +223,9 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
 
     pipeline.connect("input_loader.context", "quality_classifier.context")
     pipeline.connect("quality_classifier.context", "extraction_router.context")
-    pipeline.connect("quality_classifier.extraction_mode", "extraction_router.extraction_mode")
+    pipeline.connect(
+        "quality_classifier.extraction_mode", "extraction_router.extraction_mode"
+    )
     pipeline.connect("extraction_router.native_context", "native_extractor.context")
     pipeline.connect("extraction_router.vision_context", "mistral_extractor.context")
     pipeline.connect("native_extractor.context", "document_joiner.value")
@@ -124,22 +239,34 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
     pipeline.connect("clause_extractor.context", "term_normalizer.context")
     pipeline.connect("term_normalizer.context", "extraction_judge.context")
     pipeline.connect("extraction_judge.context", "extraction_retry_router.context")
-    pipeline.connect("extraction_judge.needs_retry", "extraction_retry_router.needs_retry")
-    pipeline.connect("extraction_retry_router.retry_context", "focused_re_extractor.context")
-    pipeline.connect("extraction_retry_router.accepted_context", "playbook_evaluator.context")
+    pipeline.connect(
+        "extraction_judge.needs_retry", "extraction_retry_router.needs_retry"
+    )
+    pipeline.connect(
+        "extraction_retry_router.retry_context", "focused_re_extractor.context"
+    )
+    pipeline.connect(
+        "extraction_retry_router.accepted_context", "playbook_evaluator.context"
+    )
     pipeline.connect("playbook_evaluator.context", "deviation_router.context")
-    pipeline.connect("playbook_evaluator.has_deviations", "deviation_router.has_deviations")
+    pipeline.connect(
+        "playbook_evaluator.has_deviations", "deviation_router.has_deviations"
+    )
     pipeline.connect("deviation_router.compliant_context", "straight_through.context")
     pipeline.connect("straight_through.context", "final_input_joiner.value")
     pipeline.connect("deviation_router.deviating_context", "risk_judge.context")
     pipeline.connect("risk_judge.context", "review_router.context")
     pipeline.connect("review_router.context", "fallback_input_joiner.value")
-    pipeline.connect("fallback_retry_router.retry_context", "fallback_input_joiner.value")
+    pipeline.connect(
+        "fallback_retry_router.retry_context", "fallback_input_joiner.value"
+    )
     pipeline.connect("fallback_input_joiner.value", "fallback_generator.context")
     pipeline.connect("fallback_generator.context", "fallback_judge.context")
     pipeline.connect("fallback_judge.context", "fallback_retry_router.context")
     pipeline.connect("fallback_judge.needs_retry", "fallback_retry_router.needs_retry")
-    pipeline.connect("fallback_retry_router.accepted_context", "final_input_joiner.value")
+    pipeline.connect(
+        "fallback_retry_router.accepted_context", "final_input_joiner.value"
+    )
     pipeline.connect("final_input_joiner.value", "final_judge.context")
     pipeline.connect("final_judge.context", "decision_router.context")
     pipeline.connect("final_judge.approved", "decision_router.approved")
@@ -151,7 +278,12 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
     return pipeline
 
 
-def run_review(source: str, settings: Settings | None = None) -> dict[str, Any]:
+def run_review(
+    source: str,
+    settings: Settings | None = None,
+    *,
+    ground_truth: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     started = time.perf_counter()
     try:
         config_path = Path(
@@ -164,6 +296,11 @@ def run_review(source: str, settings: Settings | None = None) -> dict[str, Any]:
             build_pipeline(settings),
             execution_name="contract-review",
             config_path=str(config_path),
+            report_result=(
+                _cuad_result_reporter(ground_truth)
+                if ground_truth is not None
+                else None
+            ),
         )
         litellm_registration = install_litellm()
         try:
@@ -219,6 +356,8 @@ def run_review(source: str, settings: Settings | None = None) -> dict[str, Any]:
                 unresolved_field_count=17,
                 evidence_completeness=0,
             ),
-            errors=[{"stage": "pipeline", "type": type(exc).__name__, "message": str(exc)}],
+            errors=[
+                {"stage": "pipeline", "type": type(exc).__name__, "message": str(exc)}
+            ],
         )
         return failed.model_dump(mode="json")

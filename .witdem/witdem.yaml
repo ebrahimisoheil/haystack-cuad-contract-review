@@ -83,3 +83,84 @@ contracts:
       contract_id: $.result_assembler.result.contract_id
       agreement_type: $.result_assembler.result.agreement_type
       final_decision: $.result_assembler.result.final_decision
+
+  cuad_contract_review:
+    mode: reported
+    description: Evaluate a completed contract review against held-out CUAD annotations without exposing labels to the workflow.
+
+    result:
+      name: CUAD contract review result
+      description: The terminal review disposition produced before ground-truth evaluation.
+      values:
+        approved: Approved without exceptions.
+        approved_with_exceptions: Approved with documented exceptions.
+        manual_review_required: Escalated for human review.
+        rejected_by_playbook: Rejected by the fictional playbook.
+        processing_failed: The workflow did not complete the review.
+
+    decision:
+      name: Review disposition
+      description: The approval, exception, escalation, rejection, or processing decision.
+      values:
+        approved: Approved without exceptions.
+        approved_with_exceptions: Approved with documented exceptions.
+        manual_review_required: Escalated for human review.
+        rejected_by_playbook: Rejected by the fictional playbook.
+        processing_failed: The workflow did not complete the review.
+
+    product_goal:
+      name: Evidence-backed CUAD contract review completed
+      description: Apply the fictional playbook and return an evidence-backed approval or escalation route, then evaluate it against held-out CUAD labels.
+
+    evaluations:
+      category_f1:
+        name: CUAD category F1
+        description: Micro F1 for supported clause-presence predictions against held-out CUAD labels.
+        target: 0.7
+        direction: higher_is_better
+        unit: ratio
+      span_token_f1:
+        name: CUAD evidence span token F1
+        description: Token overlap between predicted evidence and held-out CUAD answer spans for true-positive categories.
+        target: 0.5
+        direction: higher_is_better
+        unit: ratio
+      negative_label_accuracy:
+        name: CUAD negative-label accuracy
+        description: Accuracy on supported CUAD categories annotated as absent.
+        target: 0.8
+        direction: higher_is_better
+        unit: ratio
+
+    metrics:
+      evaluated_categories:
+        name: CUAD evaluated categories
+        unit: categories
+      true_positives:
+        name: CUAD true positives
+        unit: categories
+      false_positives:
+        name: CUAD false positives
+        unit: categories
+      false_negatives:
+        name: CUAD false negatives
+        unit: categories
+      true_negatives:
+        name: CUAD true negatives
+        unit: categories
+      evaluated_spans:
+        name: CUAD evaluated spans
+        unit: spans
+      workflow_retries:
+        name: Workflow retries
+        unit: retries
+
+    dimensions:
+      contract_id:
+        name: Contract ID
+      agreement_type:
+        name: Agreement type
+      final_decision:
+        name: Final decision
+      evaluation_version:
+        name: Evaluation protocol

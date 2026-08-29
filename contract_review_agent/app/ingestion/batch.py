@@ -10,6 +10,7 @@ from typing import Any
 
 from ..config import Settings
 from ..pipeline import run_review
+from .evaluation import aggregate_cuad_evaluations
 from .schemas import CuadManifest
 
 
@@ -50,7 +51,11 @@ def run_cuad_manifest(
         text_path = Path(contract.text_path)
         if not text_path.exists() or _sha256_text(text_path) != contract.context_sha256:
             raise ValueError(f"CUAD materialized text failed integrity validation: {text_path}")
-        result = run_review(contract.review_source, active_settings)
+        result = run_review(
+            contract.review_source,
+            active_settings,
+            ground_truth=[label.model_dump(mode="json") for label in contract.labels],
+        )
         runs.append(
             {
                 "cuad_contract_id": contract.contract_id,
@@ -67,6 +72,11 @@ def run_cuad_manifest(
                 "review": result,
             }
         )
+    evaluations = [
+        run["review"]["cuad_evaluation"]
+        for run in runs
+        if run["review"].get("cuad_evaluation") is not None
+    ]
     payload = {
         "dataset": manifest.dataset,
         "dataset_version": manifest.dataset_version,
@@ -85,6 +95,7 @@ def run_cuad_manifest(
             "model_cost_usd": round(
                 sum(run["review"]["metrics"]["estimated_cost_usd"] for run in runs), 8
             ),
+            "ground_truth_evaluation": aggregate_cuad_evaluations(evaluations),
         },
         "runs": runs,
     }

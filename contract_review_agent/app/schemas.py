@@ -130,6 +130,36 @@ class BusinessOutcome(StrictModel):
     objective_met: bool
 
 
+class CuadCategoryEvaluation(StrictModel):
+    category: str
+    ground_truth_positive: bool
+    predicted_positive: bool
+    outcome: Literal["true_positive", "false_positive", "false_negative", "true_negative"]
+    span_exact_match: float | None = Field(default=None, ge=0, le=1)
+    span_token_f1: float | None = Field(default=None, ge=0, le=1)
+
+
+class CuadGroundTruthEvaluation(StrictModel):
+    evaluation_version: str = "cuad-ground-truth-v1"
+    evaluated_categories: int = Field(ge=0)
+    supported_categories: list[str]
+    ground_truth_positives: int = Field(ge=0)
+    predicted_positives: int = Field(ge=0)
+    true_positives: int = Field(ge=0)
+    false_positives: int = Field(ge=0)
+    false_negatives: int = Field(ge=0)
+    true_negatives: int = Field(ge=0)
+    category_precision: float | None = Field(default=None, ge=0, le=1)
+    category_recall: float | None = Field(default=None, ge=0, le=1)
+    category_f1: float | None = Field(default=None, ge=0, le=1)
+    category_accuracy: float = Field(ge=0, le=1)
+    negative_label_accuracy: float | None = Field(default=None, ge=0, le=1)
+    evaluated_spans: int = Field(ge=0)
+    span_exact_match: float | None = Field(default=None, ge=0, le=1)
+    span_token_f1: float | None = Field(default=None, ge=0, le=1)
+    categories: list[CuadCategoryEvaluation]
+
+
 class ContractReviewResult(StrictModel):
     contract_id: str
     agreement_type: str | None
@@ -152,4 +182,5 @@ class ContractReviewResult(StrictModel):
     obligations: list[Obligation]
     outcome: BusinessOutcome
     metrics: RunMetrics
+    cuad_evaluation: CuadGroundTruthEvaluation | None = None
     errors: list[dict[str, Any]] = Field(default_factory=list)

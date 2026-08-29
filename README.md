@@ -403,6 +403,43 @@ Run the selected contracts through the existing workflow:
 
 The default limit is 20. Limits above 100 require the explicit `--allow-large` flag to prevent accidental high-cost batches. Deterministic mode is useful for testing ingestion, integrity, branching, and audit mechanics; it is not an accuracy benchmark for naturally drafted CUAD contracts. Use live mode for model-quality evaluation.
 
+### CUAD ground-truth evaluation
+
+CUAD labels stay outside the instrumented Haystack inputs. A post-run result
+reporter evaluates them only after every model call, judge, route, and retry has
+completed, then reports the scores to Witdem on the same execution. The labels
+cannot enter prompts, change the prediction, or appear in captured pipeline
+inputs. The evaluator currently maps seven categories that have an honest
+correspondence with this workflow's output schema:
+
+- Governing Law
+- Termination For Convenience
+- Anti-Assignment
+- Cap On Liability
+- Uncapped Liability
+- Renewal Term
+- Notice Period To Terminate Renewal
+
+For each contract, the result includes category precision, recall, F1 and
+accuracy; negative-label accuracy; evidence-span exact match; token-level span
+F1; the confusion counts; and per-category outcomes. The batch summary
+recomputes micro metrics from all selected contracts instead of averaging
+per-contract percentages.
+
+The [Witdem configuration](.witdem/witdem.yaml) contains a dedicated reported
+contract for CUAD runs. It declares category F1, evidence-span token F1, and
+negative-label accuracy without adding fake scores to ordinary reviews. Witdem
+can therefore compare held-out accuracy with model routing, retries, latency,
+cost, and the business outcome on the same execution. Categories without a
+defensible mapping are preserved in the manifest but are not claimed as
+evaluated.
+
+The held-out labels never trigger a retry on the contract they evaluate. Their
+declared targets instead contribute to Witdem's evidence-sufficiency signal: a
+workflow may complete its business route while ground-truth assurance still
+needs attention. Undefined scores—for example span F1 when there is no
+true-positive span—are omitted rather than reported as invented zeros.
+
 ## Project structure
 
 ~~~text
@@ -416,7 +453,7 @@ contract_review_agent/
     model_routing.yaml
     pipeline.py       Haystack graph and ConditionalRouters
     schemas.py        strict audit schemas
-    ingestion/        CUAD download, manifests, labels, and batch handoff
+    ingestion/        CUAD download, labels, held-out evaluation, and batch handoff
 examples/
 tests/
 .witdem/                 analytics contract and local receiver configuration

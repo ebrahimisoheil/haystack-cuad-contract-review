@@ -104,6 +104,8 @@ default_contract: contract_review
 contracts:
   contract_review:
     mode: expression
+  cuad_contract_review:
+    mode: reported
 ```
 
 Why:
@@ -112,11 +114,14 @@ Why:
   explicit.
 - `expression` means Witdem evaluates paths and expressions against Haystack's
   final returned value.
-- The alternative, `reported`, is intended for applications that explicitly
-  report authoritative business facts themselves.
+- `reported` is used by the CUAD batch path because the application computes
+  held-out ground-truth scores after the prediction is complete.
 
-This application already returns a strict Pydantic result, so expression mode
-keeps the integration small and auditable.
+Ordinary reviews use the default expression contract because the application
+already returns a strict Pydantic result. CUAD reviews select the reported
+contract through the Haystack integration's result reporter. Separating the two
+prevents ordinary reviews from receiving fake zero scores when no ground truth
+exists.
 
 ### 4. Record the application outcome
 
@@ -244,6 +249,45 @@ success. In this application, evidence completeness also affects
 `objective_met` because the application explicitly includes that threshold in
 its own outcome calculation.
 
+The reported CUAD contract declares a separate evaluation glossary:
+
+```yaml
+cuad_contract_review:
+  mode: reported
+  evaluations:
+    category_f1:
+      name: CUAD category F1
+      target: 0.7
+      direction: higher_is_better
+      unit: ratio
+    span_token_f1:
+      name: CUAD evidence span token F1
+      target: 0.5
+      direction: higher_is_better
+      unit: ratio
+    negative_label_accuracy:
+      name: CUAD negative-label accuracy
+      target: 0.8
+      direction: higher_is_better
+      unit: ratio
+```
+
+The application supplies these values only when a review comes from a CUAD
+manifest. Ground-truth labels stay in a closure owned by the post-run result
+reporter and are evaluated after all model stages have completed. They never
+become Haystack input or enter the context seen by extraction, judge, or retry
+components. The evaluator compares the finished prediction with seven
+defensibly mapped CUAD categories and reports category F1, evidence-span token
+F1, and negative-label accuracy to Witdem on the same execution. A score with
+no valid denominator is omitted rather than invented.
+
+These held-out scores do not drive a retry on the same contract. Doing so would
+leak the answer. They support offline model-routing, prompt, and workflow
+experiments across a batch. The application does use the three declared targets
+to report Witdem evidence sufficiency. Product-goal achievement can therefore
+remain true while assurance needs attention, preserving the distinction between
+completing the business route and proving its held-out quality.
+
 ### 9. Keep diagnostics separate from success
 
 ```yaml
@@ -264,6 +308,11 @@ model cost. These values help explain behavior and economics, but they do not
 make a review successful or unsuccessful. Keeping measurements separate from
 the goal prevents a cheap or fast failure from looking like a good product
 outcome.
+
+The reported CUAD contract separately records evaluated categories, true and
+false positives, true and false negatives, evaluated spans, and workflow
+retries. These diagnostics make an aggregate F1 score investigable rather than
+opaque.
 
 Witdem can additionally derive provider/model usage and measured cost from the
 observed LiteLLM calls. Application-reported cost remains a separate declared
