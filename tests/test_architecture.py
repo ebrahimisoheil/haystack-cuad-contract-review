@@ -1,9 +1,28 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import yaml
 from haystack.components.routers import ConditionalRouter
 
 from contract_review_agent.app.config import Settings
 from contract_review_agent.app.pipeline import build_pipeline
+
+
+def test_witdem_workflow_covers_every_pipeline_component() -> None:
+    definition = yaml.safe_load(
+        (Path(__file__).parents[1] / ".witdem/workflows/contract-review.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    declared_names = {
+        name
+        for stage in definition["stages"]
+        for node in stage["nodes"]
+        for name in node["match"]["names"]
+    }
+
+    assert declared_names == set(build_pipeline().graph.nodes)
 
 
 def test_pipeline_exposes_required_routing_nodes() -> None:

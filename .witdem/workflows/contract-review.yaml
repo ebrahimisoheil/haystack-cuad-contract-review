@@ -1,0 +1,408 @@
+version: 1
+id: contract-review
+name: Contract review
+description: Ingest a vendor agreement, extract and validate its evidence, apply the playbook, route specialist review, and return an approval or escalation decision.
+framework: haystack
+match:
+  runtime_names: [haystack]
+  service_names: [haystack-cuad-contract-review]
+  execution_names: [contract-review]
+
+ignore_observed:
+  - names: [workflow.definition, Workflow definition]
+
+stages:
+  - id: intake
+    name: Document intake
+    description: Load the agreement, assess document quality, and select native extraction or OCR.
+    nodes:
+      - id: input_loader
+        name: Load contract
+        kind: Input
+        description: Load and identify the source contract.
+        match: {names: [input_loader]}
+
+      - id: quality_classifier
+        name: Assess document quality
+        kind: Quality check
+        description: Determine whether the agreement has usable native text.
+        match: {names: [quality_classifier]}
+        depends_on: [input_loader]
+
+      - id: extraction_router
+        name: Select extraction route
+        kind: Router
+        description: Route native text directly or send scanned and weak documents to OCR.
+        match: {names: [extraction_router]}
+        depends_on: [quality_classifier]
+
+      - id: native_extractor
+        name: Extract native PDF text
+        kind: Extraction
+        match: {names: [native_extractor]}
+        depends_on:
+          - node: extraction_router
+            type: branch
+            route: native
+            label: Native text
+
+      - id: mistral_extractor
+        name: Extract document with OCR
+        kind: Vision extraction
+        description: Use the configured vision role for scanned or weak documents.
+        match: {names: [mistral_extractor]}
+        depends_on:
+          - node: extraction_router
+            type: branch
+            route: vision
+            label: OCR required
+
+      - id: document_joiner
+        name: Join extracted document
+        kind: Convergence
+        match: {names: [document_joiner]}
+        depends_on:
+          - node: native_extractor
+            type: convergence
+            label: Native result
+          - node: mistral_extractor
+            type: convergence
+            label: OCR result
+
+  - id: extraction
+    name: Contract extraction
+    description: Normalize the document, extract structured contract terms, and validate evidence quality.
+    depends_on: [intake]
+    nodes:
+      - id: text_normalizer
+        name: Normalize contract text
+        kind: Normalization
+        match: {names: [text_normalizer]}
+        depends_on: [document_joiner]
+
+      - id: agreement_classifier
+        name: Classify agreement
+        kind: Classification
+        match: {names: [agreement_classifier]}
+        depends_on: [text_normalizer]
+
+      - id: metadata_extractor
+        name: Extract agreement metadata
+        kind: Extraction
+        match: {names: [metadata_extractor]}
+        depends_on: [agreement_classifier]
+
+      - id: clause_input_joiner
+        name: Prepare clause extraction
+        kind: Convergence
+        match: {names: [clause_input_joiner]}
+        depends_on: [metadata_extractor]
+
+      - id: clause_extractor
+        name: Extract contract clauses
+        kind: Extraction
+        match: {names: [clause_extractor]}
+        depends_on: [clause_input_joiner]
+        retry:
+          via: focused_re_extractor
+          max_attempts: 3
+
+      - id: term_normalizer
+        name: Normalize structured terms
+        kind: Normalization
+        match: {names: [term_normalizer]}
+        depends_on: [clause_extractor]
+
+      - id: extraction_judge
+        name: Judge extraction quality
+        kind: Quality gate
+        match: {names: [extraction_judge]}
+        depends_on: [term_normalizer]
+
+      - id: extraction_retry_router
+        name: Route extraction retry
+        kind: Router
+        match: {names: [extraction_retry_router]}
+        depends_on: [extraction_judge]
+
+      - id: focused_re_extractor
+        name: Repair extraction gaps
+        kind: Recovery
+        match: {names: [focused_re_extractor]}
+        depends_on:
+          - node: extraction_retry_router
+            type: branch
+            route: retry
+            label: Retry extraction
+
+  - id: playbook
+    name: Playbook and risk
+    description: Apply the fictional playbook, assess deviations, and select the risk route.
+    depends_on: [extraction]
+    nodes:
+      - id: playbook_evaluator
+        name: Evaluate playbook
+        kind: Policy evaluation
+        match: {names: [playbook_evaluator]}
+        depends_on:
+          - node: extraction_retry_router
+            type: branch
+            route: accepted
+            label: Extraction accepted
+
+      - id: deviation_router
+        name: Route deviations
+        kind: Router
+        match: {names: [deviation_router]}
+        depends_on: [playbook_evaluator]
+
+      - id: straight_through
+        name: Prepare compliant agreement
+        kind: Straight-through route
+        match: {names: [straight_through]}
+        depends_on:
+          - node: deviation_router
+            type: branch
+            route: compliant
+            label: No deviations
+
+      - id: risk_judge
+        name: Judge deviation risk
+        kind: Risk assessment
+        match: {names: [risk_judge]}
+        depends_on:
+          - node: deviation_router
+            type: branch
+            route: deviations
+            label: Deviations found
+
+      - id: risk_tier_router
+        name: Route risk tier
+        kind: Router
+        match: {names: [risk_tier_router]}
+        depends_on: [risk_judge]
+
+      - id: low_risk_acceptance
+        name: Accept low-risk deviations
+        kind: Low-risk route
+        match: {names: [low_risk_acceptance]}
+        depends_on:
+          - node: risk_tier_router
+            type: branch
+            route: low
+            label: Low risk
+
+      - id: high_risk_policy_gate
+        name: Enforce human review
+        kind: Policy gate
+        match: {names: [high_risk_policy_gate]}
+        depends_on:
+          - node: risk_tier_router
+            type: branch
+            route: high
+            label: High risk
+
+      - id: elevated_risk_joiner
+        name: Join elevated-risk route
+        kind: Convergence
+        match: {names: [elevated_risk_joiner]}
+        depends_on:
+          - node: risk_tier_router
+            type: branch
+            route: medium
+            label: Medium risk
+          - node: high_risk_policy_gate
+            type: convergence
+            label: Human review enforced
+
+  - id: specialist_review
+    name: Specialist review
+    description: Fan elevated-risk findings out to relevant business domains and aggregate their decisions.
+    depends_on: [playbook]
+    nodes:
+      - id: domain_review_dispatcher
+        name: Dispatch specialist reviews
+        kind: Fan-out
+        match: {names: [domain_review_dispatcher]}
+        depends_on: [elevated_risk_joiner]
+
+      - id: legal_domain_review
+        name: Legal review
+        kind: Specialist review
+        match: {names: [legal_domain_review]}
+        depends_on:
+          - node: domain_review_dispatcher
+            type: branch
+            route: legal
+            label: Legal
+
+      - id: finance_domain_review
+        name: Finance review
+        kind: Specialist review
+        match: {names: [finance_domain_review]}
+        depends_on:
+          - node: domain_review_dispatcher
+            type: branch
+            route: finance
+            label: Finance
+
+      - id: security_domain_review
+        name: Security and privacy review
+        kind: Specialist review
+        match: {names: [security_domain_review]}
+        depends_on:
+          - node: domain_review_dispatcher
+            type: branch
+            route: security
+            label: Security
+
+      - id: business_domain_review
+        name: Procurement review
+        kind: Specialist review
+        match: {names: [business_domain_review]}
+        depends_on:
+          - node: domain_review_dispatcher
+            type: branch
+            route: business
+            label: Procurement
+
+      - id: domain_review_joiner
+        name: Join specialist reviews
+        kind: Convergence
+        match: {names: [domain_review_joiner]}
+        depends_on:
+          - node: legal_domain_review
+            type: convergence
+          - node: finance_domain_review
+            type: convergence
+          - node: security_domain_review
+            type: convergence
+          - node: business_domain_review
+            type: convergence
+
+      - id: domain_review_aggregator
+        name: Aggregate specialist decisions
+        kind: Aggregation
+        match: {names: [domain_review_aggregator]}
+        depends_on:
+          - node: domain_review_dispatcher
+          - node: domain_review_joiner
+            type: convergence
+
+  - id: decision
+    name: Fallback and decision
+    description: Draft and validate fallback language when needed, then make the final review decision.
+    depends_on: [playbook, specialist_review]
+    nodes:
+      - id: fallback_input_joiner
+        name: Prepare fallback drafting
+        kind: Convergence
+        match: {names: [fallback_input_joiner]}
+        depends_on: [domain_review_aggregator]
+
+      - id: fallback_generator
+        name: Draft fallback language
+        kind: Generation
+        match: {names: [fallback_generator]}
+        depends_on: [fallback_input_joiner]
+        retry:
+          via: fallback_retry_router
+          max_attempts: 3
+
+      - id: fallback_judge
+        name: Judge fallback language
+        kind: Quality gate
+        match: {names: [fallback_judge]}
+        depends_on: [fallback_generator]
+
+      - id: fallback_retry_router
+        name: Route fallback retry
+        kind: Router
+        match: {names: [fallback_retry_router]}
+        depends_on: [fallback_judge]
+
+      - id: final_input_joiner
+        name: Join final candidate
+        kind: Convergence
+        match: {names: [final_input_joiner]}
+        depends_on:
+          - node: straight_through
+            type: convergence
+            label: Compliant candidate
+          - node: low_risk_acceptance
+            type: convergence
+            label: Low-risk candidate
+          - node: fallback_retry_router
+            type: branch
+            route: accepted
+            label: Fallback accepted
+
+      - id: final_judge
+        name: Make final review decision
+        kind: Decision gate
+        match: {names: [final_judge]}
+        depends_on: [final_input_joiner]
+
+      - id: decision_router
+        name: Route final disposition
+        kind: Router
+        match: {names: [decision_router]}
+        depends_on: [final_judge]
+
+  - id: result
+    name: Review result
+    description: Extract post-signature obligations when approved and assemble the typed audit result.
+    depends_on: [decision]
+    nodes:
+      - id: obligation_extractor
+        name: Extract obligations
+        kind: Post-signature extraction
+        match: {names: [obligation_extractor]}
+        depends_on:
+          - node: decision_router
+            type: branch
+            route: approved
+            label: Approved
+
+      - id: skip_obligations
+        name: Skip obligations
+        kind: Manual route
+        match: {names: [skip_obligations]}
+        depends_on:
+          - node: decision_router
+            type: branch
+            route: manual
+            label: Manual or rejected
+
+      - id: result_input_joiner
+        name: Join result route
+        kind: Convergence
+        match: {names: [result_input_joiner]}
+        depends_on:
+          - node: obligation_extractor
+            type: convergence
+          - node: skip_obligations
+            type: convergence
+
+      - id: result_assembler
+        name: Assemble contract review
+        kind: Result
+        match: {names: [result_assembler]}
+        depends_on: [result_input_joiner]
+
+outcomes:
+  - id: approved
+    name: Approved
+    from: [result_assembler]
+  - id: approved_with_exceptions
+    name: Approved with exceptions
+    from: [result_assembler]
+  - id: manual_review_required
+    name: Human review required
+    from: [result_assembler]
+  - id: rejected_by_playbook
+    name: Rejected by playbook
+    from: [result_assembler]
+  - id: processing_failed
+    name: Processing failed
+    from: [result_assembler]

@@ -11,6 +11,11 @@ telemetry:
   capture_content: false
 
 default_contract: contract_review
+default_workflow: contract-review
+
+workflows:
+  - id: contract-review
+    definition: workflows/contract-review.yaml
 
 contracts:
   contract_review:

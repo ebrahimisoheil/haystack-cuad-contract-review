@@ -766,7 +766,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4.4,<5" },
-    { name = "witdem-sdk", extras = ["haystack", "litellm"], specifier = "==0.2.0" },
+    { name = "witdem-sdk", extras = ["haystack", "litellm"], specifier = "==0.1.1" },
 ]
 provides-extras = ["dev"]
 
@@ -2489,7 +2489,7 @@ wheels = [
 
 [[package]]
 name = "witdem-sdk"
-version = "0.2.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -2500,9 +2500,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/78/5d05325eb4b9cd2bc4d62b6e07d5a875a5461a47659f843d81f8837d7fdb/witdem_sdk-0.2.0.tar.gz", hash = "sha256:12df12e6590c2141324bcc54eea0225df9ed80bb436fbb3175ba3ae1092ee145", size = 64991, upload-time = "2026-08-26T20:51:09.552Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/cc/42fd44a643069a2ded004c81f6223f496c167226f97867cee7f920776be8/witdem_sdk-0.1.1.tar.gz", hash = "sha256:b8d25e7e6ed796ee1424c845a0495ef476603197c6f4ee9b3deaedf6a13c36df", size = 69593, upload-time = "2026-08-31T22:55:29.981Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/3b/0cc2b023c0014343bae316edd11ec1f337661a317b997ae7e0fec04cee21/witdem_sdk-0.2.0-py3-none-any.whl", hash = "sha256:d4ce3fa9533e0f07c26fa020fae3458b21152d3d992ae13c9ea4c5620a90553e", size = 57880, upload-time = "2026-08-26T20:51:08.204Z" },
+    { url = "https://files.pythonhosted.org/packages/de/c1/42d209b1a0d8ef40125c6b01c2dd2ae92188d08cd0c9159a3ea5acfc8d94/witdem_sdk-0.1.1-py3-none-any.whl", hash = "sha256:12af52d1e3787273f6d9fb7a8023b7c994aae8fa3ab4d59f447337307f4656ed", size = 61463, upload-time = "2026-08-31T22:55:28.597Z" },
 ]
 
 [package.optional-dependencies]

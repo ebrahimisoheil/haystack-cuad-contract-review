@@ -25,7 +25,7 @@ dependencies = [
   "pypdf>=6.0,<7",
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
-  "witdem-sdk[haystack,litellm]==0.2.0",
+  "witdem-sdk[haystack,litellm]==0.1.1",
 ]
 
 [project.optional-dependencies]
