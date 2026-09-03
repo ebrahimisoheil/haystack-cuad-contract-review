@@ -20,12 +20,13 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=3.1.0,<4",
+  "lancedb>=0.38.0,<0.39",
   "litellm-haystack>=1.2.0,<2",
   "pydantic>=2.12,<3",
   "pypdf>=6.0,<7",
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
-  "witdem-sdk[haystack,litellm]==0.1.1",
+  "witdem-sdk[haystack,litellm]==0.2.1",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +40,7 @@ dev = [
 [project.scripts]
 contract-review = "contract_review_agent.app.main:main"
 contract-review-showcase = "contract_review_agent.app.showcase:main"
+contract-memory = "contract_review_agent.app.memory.cli:main"
 cuad-data = "contract_review_agent.app.ingestion.cli:main"
 
 [tool.hatch.build.targets.wheel]

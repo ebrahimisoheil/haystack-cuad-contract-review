@@ -139,7 +139,24 @@ class DomainReviewer(Stage):
                         f"Act as the {self.area} reviewer. Assess only {DOMAIN_RUBRICS[self.area]}. "
                         "Return decision (accept, negotiate, or escalate) and rationale as JSON."
                     ),
-                    prompt=json.dumps(branch_deviations),
+                    prompt=json.dumps(
+                        {
+                            "deviations": branch_deviations,
+                            "approved_precedents": [
+                                item
+                                for item in ctx.get("precedents", [])
+                                if item["clause_type"]
+                                in {
+                                    deviation["clause"]
+                                    for deviation in branch_deviations
+                                }
+                            ],
+                            "instruction": (
+                                "The YAML playbook remains authoritative. Precedents are "
+                                "evidence from prior human-approved decisions, not policy."
+                            ),
+                        }
+                    ),
                 )
                 decision = (
                     str(response.get("decision")) if response else default_decision
@@ -221,6 +238,7 @@ class FallbackGenerator(Stage):
                     {
                         "deviations": ctx.get("deviations", []),
                         "domain_reviews": ctx.get("domain_reviews", []),
+                        "approved_precedents": ctx.get("precedents", []),
                     }
                 ),
             )
@@ -245,8 +263,18 @@ class FallbackGenerator(Stage):
                     if clause and fallback:
                         generated[str(clause)] = str(fallback)
             for deviation in ctx.get("deviations", []):
+                precedent_fallback = next(
+                    (
+                        item.get("approved_fallback")
+                        for item in ctx.get("precedents", [])
+                        if item.get("clause_type") == deviation["clause"]
+                        and item.get("approved_fallback")
+                    ),
+                    None,
+                )
                 fallback = (
                     generated.get(deviation["clause"])
+                    or precedent_fallback
                     or self.FALLBACKS[deviation["clause"]]
                 )
                 if ctx["fallback_attempt"] > 1:

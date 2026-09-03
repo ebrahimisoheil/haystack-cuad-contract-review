@@ -1,0 +1,175 @@
+corpus_id: fictional-vendor-saas-approved-v1
+description: >-
+  Synthetic human-approved decisions for demonstrating governed contract memory.
+  These examples are not legal advice and are not CUAD ground-truth labels.
+precedents:
+  - precedent_id: saas-liability-001
+    tenant_id: showcase
+    contract_id: approved-acme-msa-001
+    contract_version: 2
+    clause_type: liability
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 8
+    source_text: Aggregate liability will not exceed fees paid or payable during the twelve months preceding the event giving rise to the claim.
+    normalized_meaning: Bilateral twelve-month fees cap with customary exclusions.
+    final_decision: approved_with_exceptions
+    approved_fallback: Cap aggregate liability at fees paid or payable in the preceding twelve months, subject only to approved mutual carve-outs.
+    decision_rationale: Legal approved this negotiated cap because it follows the vendor SaaS playbook.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-01-15T10:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-termination-001
+    tenant_id: showcase
+    contract_id: approved-blue-msa-002
+    contract_version: 1
+    clause_type: termination
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: New York
+    page: 6
+    source_text: Customer may terminate for convenience on sixty days prior written notice and either party may terminate for uncured material breach.
+    normalized_meaning: Termination for convenience within sixty days plus mutual termination for cause.
+    final_decision: approved
+    approved_fallback: Add customer termination for convenience on no more than sixty days notice and mutual termination for uncured material breach.
+    decision_rationale: The clause met the playbook termination position after negotiation.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-02-03T09:30:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-indemnity-001
+    tenant_id: showcase
+    contract_id: approved-cloud-msa-003
+    contract_version: 3
+    clause_type: indemnity
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 9
+    source_text: Each party will defend the other against specified third-party claims caused by its infringement, misconduct, or violation of law.
+    normalized_meaning: Mutual, scoped indemnities limited to third-party claims.
+    final_decision: approved_with_exceptions
+    approved_fallback: Make indemnities mutual, limited to specified third-party claims, and subject to the agreed liability framework.
+    decision_rationale: Legal approved the mutual and scoped allocation of third-party claim risk.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-02-18T15:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-governing-law-001
+    tenant_id: showcase
+    contract_id: approved-data-msa-004
+    contract_version: 1
+    clause_type: governing_law
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: New York
+    page: 12
+    source_text: This agreement is governed by the laws of the State of New York without regard to conflicts principles.
+    normalized_meaning: New York governing law.
+    final_decision: approved
+    approved_fallback: Replace the governing law with Delaware or New York law.
+    decision_rationale: New York is an expressly preferred playbook jurisdiction.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-03-05T11:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-payment-001
+    tenant_id: showcase
+    contract_id: approved-finance-msa-005
+    contract_version: 2
+    clause_type: payment
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 4
+    source_text: Undisputed invoices are payable thirty days after receipt and no annual prepayment is required.
+    normalized_meaning: Net 30 in arrears without unusual prepayment.
+    final_decision: approved
+    approved_fallback: Use Net 30 invoicing in arrears and remove unapproved advance prepayment.
+    decision_rationale: Finance confirmed the payment timing and structure matched policy.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-03-11T13:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-security-001
+    tenant_id: showcase
+    contract_id: approved-secure-msa-006
+    contract_version: 4
+    clause_type: security
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 10
+    source_text: Vendor will maintain documented administrative, technical, and organizational safeguards appropriate to the risk.
+    normalized_meaning: Express risk-appropriate information security commitments.
+    final_decision: approved_with_exceptions
+    approved_fallback: Add documented administrative, technical, and organizational security safeguards appropriate to the risk.
+    decision_rationale: Security approved the language together with the signed security schedule.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-03-22T08:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-dpa-001
+    tenant_id: showcase
+    contract_id: approved-privacy-msa-007
+    contract_version: 2
+    clause_type: dpa
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: New York
+    page: 11
+    source_text: The parties will incorporate Customer's data processing addendum before Vendor processes personal data.
+    normalized_meaning: Customer DPA is a condition to processing personal data.
+    final_decision: approved
+    approved_fallback: Incorporate the customer's approved data processing addendum before any personal data is processed.
+    decision_rationale: Privacy approved the dependency on the standard customer DPA.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-04-02T16:15:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-sla-001
+    tenant_id: showcase
+    contract_id: approved-ops-msa-008
+    contract_version: 1
+    clause_type: sla
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 7
+    source_text: Vendor commits to 99.9 percent monthly availability and provides tiered service credits for a missed service level.
+    normalized_meaning: Defined availability target backed by service-credit remedies.
+    final_decision: approved
+    approved_fallback: Define monthly availability and a meaningful service-credit remedy for missed service levels.
+    decision_rationale: The business owner approved the measurable service commitment and remedy.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-04-14T12:00:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-term-001
+    tenant_id: showcase
+    contract_id: approved-procurement-msa-009
+    contract_version: 3
+    clause_type: term
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: New York
+    page: 3
+    source_text: The initial term is twelve months and each renewal is twelve months unless either party gives at least thirty days notice.
+    normalized_meaning: Twelve-month initial and renewal terms with thirty-day non-renewal notice.
+    final_decision: approved
+    approved_fallback: Limit initial and renewal terms to twelve months and require at least thirty days non-renewal notice.
+    decision_rationale: Procurement confirmed that term and renewal mechanics meet the playbook.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-04-25T10:45:00Z"
+    allowed_groups: [all]
+  - precedent_id: saas-assignment-001
+    tenant_id: showcase
+    contract_id: approved-legal-msa-010
+    contract_version: 2
+    clause_type: assignment
+    agreement_type: Vendor SaaS Agreement
+    jurisdiction: Delaware
+    page: 13
+    source_text: Neither party may assign without prior written consent except to an affiliate or in connection with a change of control.
+    normalized_meaning: Assignment requires consent with customary corporate exceptions.
+    final_decision: approved
+    approved_fallback: Require prior written consent for assignment with customary affiliate and change-of-control exceptions.
+    decision_rationale: Legal approved the balanced restriction and customary exceptions.
+    review_status: human_approved
+    policy_version: vendor-saas-v1
+    effective_at: "2026-05-06T14:00:00Z"
+    allowed_groups: [all]

@@ -79,6 +79,17 @@ class ResultAssembler(Stage):
                 total_input_tokens=total_input,
                 total_output_tokens=total_output,
                 estimated_cost_usd=round(total_cost, 8),
+                memory_mode=ctx.get("memory", {}).get("mode", "off"),
+                memory_query_count=int(ctx.get("memory", {}).get("query_count", 0)),
+                memory_candidate_count=int(
+                    ctx.get("memory", {}).get("candidate_count", 0)
+                ),
+                memory_selected_count=int(
+                    ctx.get("memory", {}).get("selected_count", 0)
+                ),
+                memory_retrieval_latency_ms=float(
+                    ctx.get("memory", {}).get("retrieval_latency_ms", 0.0)
+                ),
             )
             result = ContractReviewResult(
                 contract_id=ctx["contract_id"],
@@ -103,6 +114,21 @@ class ResultAssembler(Stage):
                 review_areas=ctx.get("review_areas", []),
                 domain_reviews=ctx.get("domain_reviews", []),
                 obligations=ctx.get("obligations", []),
+                memory=ctx.get(
+                    "memory",
+                    {
+                        "mode": "off",
+                        "embedding_model": self.models.model_name("embedding"),
+                        "table": self.settings.memory_table,
+                        "table_version": None,
+                        "query_count": 0,
+                        "candidate_count": 0,
+                        "selected_count": 0,
+                        "retrieval_latency_ms": 0.0,
+                        "selected_precedents": [],
+                        "shadow_precedents": [],
+                    },
+                ),
                 outcome=outcome,
                 metrics=metrics,
                 errors=ctx.get("errors", []),

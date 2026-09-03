@@ -15,13 +15,16 @@ This reference application reviews fictional-company vendor SaaS agreements thro
 ~~~text
 Witdem intelligence layer
   <- execution graph, retries, tokens, cost, failures, business outcome
-Haystack workflow layer (41 declared components)
+Haystack workflow layer (47 declared components)
   -> input and quality routing
-  -> extraction, review, retry loops, final decision
+  -> extraction, governed precedent retrieval, review, retry loops, final decision
 LiteLLM model gateway
   -> Mistral vision/OCR
   -> DeepSeek text processing
   -> OpenAI judging and final gates
+  -> Voyage embeddings
+LanceDB contract memory
+  -> human-approved, versioned precedent evidence
 ~~~
 
 The application remains framework-centric: Haystack owns orchestration and
@@ -74,7 +77,7 @@ evaluation results still require attention.
 
 **3. Declared workflow structure.** The complete topology comes from
 [`contract-review.yaml`](.witdem/workflows/contract-review.yaml). Witdem keeps
-the six phases and 41 Haystack components stable, then projects each observed
+the six phases and 47 Haystack components stable, then projects each observed
 execution onto that declaration. The graph exposes native-versus-OCR routing,
 playbook decisions, specialist fan-out and convergence, fallback retries, and
 the final result branches.
@@ -99,7 +102,7 @@ After the public Witdem services are running and `.env` contains the three
 provider keys, create a safe fictional scan and run the verifier:
 
 ~~~bash
-npx -y witdem@stable-0-1 up
+npx -y witdem@0.2.1 up
 uv run --extra dev python examples/create_showcase_scan.py
 uv run contract-review-showcase output/showcase/scanned-vendor-saas.pdf
 ~~~
@@ -127,8 +130,12 @@ avoids the legacy generators removed in Haystack 3.
 | PDF/image understanding | vision | mistral/mistral-ocr-latest | Scanned PDF OCR, layout-aware page extraction, page evidence |
 | Text extraction/transformation | text | deepseek/deepseek-chat | Normalization, classification, metadata, clauses, terms, fallback drafting, obligations |
 | Judge/evaluation/approval | judge | openai/gpt-5.4 | Extraction gate, playbook evaluation, severity, fallback gate, final decision |
+| Contract-memory retrieval | embedding | voyage/voyage-4-large | Document/query embeddings for approved precedent retrieval in LanceDB |
 
-All LLM and multimodal calls must go through LiteLLM unless LiteLLM cannot expose the capability. Haystack remains the orchestration layer. The official Haystack LiteLLM generator is used for chat calls; the shared role registry calls LiteLLM's OCR endpoint only because the chat generator does not expose document OCR.
+All LLM, multimodal, and embedding calls go through LiteLLM. Haystack remains
+the orchestration layer. The official Haystack LiteLLM generator is used for
+chat calls; the shared role registry uses LiteLLM's OCR and embedding endpoints
+because the chat generator does not expose those non-chat operations.
 
 Override a role without editing the graph:
 
@@ -136,6 +143,7 @@ Override a role without editing the graph:
 export CONTRACT_REVIEW_TEXT_MODEL=anthropic/claude-sonnet-4-5
 export CONTRACT_REVIEW_VISION_MODEL=gemini/gemini-2.5-pro
 export CONTRACT_REVIEW_JUDGE_MODEL=openai/gpt-5.4
+export CONTRACT_REVIEW_EMBEDDING_MODEL=voyage/voyage-4-large
 ~~~
 
 The defaults deliberately follow the required DeepSeek/Mistral/GPT-5.4 specialization.
@@ -163,7 +171,14 @@ flowchart TD
     RT -->|medium| ER((Elevated-risk join))
     RT -->|high| HG[Mandatory human-review gate]
     HG --> ER
-    ER --> DF{Domain fan-out}
+    ER --> MM{Contract memory mode}
+    MM -->|off| MB[Memory bypass]
+    MM -->|shadow or retrieve| MQ[Build deviation queries]
+    MQ --> MR[Voyage plus LanceDB hybrid retrieval]
+    MR --> MA[Assemble approved precedent evidence]
+    MB --> MJ((Memory join))
+    MA --> MJ
+    MJ --> DF{Domain fan-out}
     DF --> L[Legal review]
     DF --> F[Finance review]
     DF --> S[Security and privacy review]
@@ -200,6 +215,62 @@ negotiation entirely.
 
 Final states are approved, approved_with_exceptions, manual_review_required, rejected_by_playbook, and processing_failed.
 
+## Governed contract memory with Voyage and LanceDB
+
+The optional memory layer turns prior human-approved decisions into cited
+evidence for later reviews. It is deliberately not a generic “embed every
+contract” RAG store. The YAML playbook remains the policy authority; memory
+answers the narrower question: *how did authorized reviewers handle similar
+language under the same policy?*
+
+Each committed synthetic precedent carries its tenant, source contract and
+version, clause type, page, exact language, normalized meaning, final decision,
+approved fallback, reviewer rationale, policy version, effective time, access
+groups, and source hash. Indexing creates separate Voyage document embeddings
+for clause language and decision rationale. Review-time queries use Voyage's
+query mode and LanceDB hybrid vector/full-text search, with prefilters that:
+
+- require `human_approved` status;
+- isolate the configured tenant and allowed groups;
+- match agreement and clause type;
+- exclude the contract currently being reviewed; and
+- return versioned source evidence rather than an uncited generated summary.
+
+Build the demo memory without provider calls:
+
+~~~bash
+CONTRACT_REVIEW_MEMORY_URI=data/contract-memory \
+  uv run contract-memory seed examples/precedents/vendor_saas_approved.yaml \
+  --mode deterministic --recreate
+~~~
+
+Build the same index with real Voyage embeddings through LiteLLM:
+
+~~~bash
+CONTRACT_REVIEW_MEMORY_URI=data/contract-memory \
+  uv run contract-memory seed examples/precedents/vendor_saas_approved.yaml \
+  --mode live --recreate
+~~~
+
+Then compare three rollout modes without changing the Haystack graph:
+
+- `off`: no retrieval;
+- `shadow`: retrieve and measure candidates, but do not expose them to model
+  decisions; and
+- `retrieve`: attach approved citations to specialist review and fallback
+  drafting.
+
+~~~bash
+CONTRACT_REVIEW_MEMORY_MODE=shadow uv run contract-review path/to/contract.pdf
+CONTRACT_REVIEW_MEMORY_MODE=retrieve uv run contract-review path/to/contract.pdf
+~~~
+
+The final JSON includes both selected and shadow evidence, the LanceDB table
+version, query/candidate/selection counts, retrieval latency, and embedding
+model. Witdem declares those as business-visible metrics and dimensions, so a
+team can compare outcomes, cost, retries, and reviewer behavior before and after
+memory influences decisions.
+
 ## Fictional playbook
 
 [vendor_saas.yaml](contract_review_agent/app/playbooks/vendor_saas.yaml) covers term and renewal, termination, liability, indemnity, governing law, assignment, data/security, SLA, and payment. It routes findings to legal, finance, security/privacy, and procurement/business-owner review. These are example business rules, not statements of law.
@@ -225,7 +296,7 @@ source and documentation are available in
 [witdem-oss](https://github.com/ebrahimisoheil/witdem-oss).
 
 ~~~bash
-python -m pip install "witdem-sdk[haystack,litellm]==0.1.1"
+python -m pip install "witdem-sdk[haystack,litellm]==0.2.1"
 ~~~
 
 To use a standard virtual environment instead:
@@ -248,9 +319,17 @@ No API keys are required for deterministic examples or tests. Live mode requires
 | DEEPSEEK_API_KEY | DeepSeek credential used by LiteLLM |
 | MISTRAL_API_KEY | Mistral OCR credential used by LiteLLM |
 | OPENAI_API_KEY | OpenAI judge credential used by LiteLLM |
+| VOYAGE_API_KEY | Voyage embedding credential used by LiteLLM |
 | CONTRACT_REVIEW_MODE | deterministic or live |
 | CONTRACT_REVIEW_MODELS_FILE | Alternate declarative role-routing YAML |
-| CONTRACT_REVIEW_*_MODEL | Optional TEXT, VISION, or JUDGE model override |
+| CONTRACT_REVIEW_*_MODEL | Optional TEXT, VISION, JUDGE, or EMBEDDING model override |
+| CONTRACT_REVIEW_MEMORY_MODE | off, shadow, or retrieve; default off |
+| CONTRACT_REVIEW_MEMORY_URI | Local or remote LanceDB URI |
+| CONTRACT_REVIEW_MEMORY_TABLE | Versioned precedent table name |
+| CONTRACT_REVIEW_MEMORY_TENANT | Tenant boundary applied before retrieval |
+| CONTRACT_REVIEW_MEMORY_ALLOWED_GROUPS | Comma-separated access groups |
+| CONTRACT_REVIEW_MEMORY_TOP_K | Selected precedents per deviation; default 3 |
+| CONTRACT_REVIEW_MEMORY_CANDIDATE_K | Hybrid-search candidate pool; default 12 |
 | CONTRACT_REVIEW_MAX_RETRIES | Workflow retry cap; default 2 |
 | CONTRACT_REVIEW_TIMEOUT_SECONDS | Provider timeout; default 60 |
 | CONTRACT_REVIEW_WITDEM_CONFIG | Optional alternate Witdem contract/configuration file |
@@ -349,7 +428,7 @@ To inspect runs in Witdem, start the public version-matched backend package, the
 run the examples:
 
 ~~~bash
-npx -y witdem@stable-0-1 up
+npx -y witdem@0.2.1 up
 uv run --extra dev python examples/run_demo_suite.py
 ~~~
 
@@ -358,7 +437,7 @@ The default [Witdem contract](.witdem/witdem.yaml) exports to
 `http://localhost:8501`. Tests use an isolated telemetry configuration, so a
 test run cannot add synthetic entries to a developer's dashboard.
 
-The complete 41-step Haystack DAG is declared in
+The complete 47-step Haystack DAG is declared in
 [`.witdem/workflows/contract-review.yaml`](.witdem/workflows/contract-review.yaml).
 It describes stages, branches, fan-out/convergence, and retry routes without
 adding Witdem-specific orchestration to the application. The dashboard keeps
@@ -453,6 +532,7 @@ true-positive span—are omitted rather than reported as invented zeros.
 contract_review_agent/
   app/
     components/       visible Haystack business stages
+    memory/           governed precedent schemas, LanceDB boundary, and index CLI
     prompts/          text, vision, and judge prompt assets
     playbooks/        fictional vendor SaaS rules
     config.py         environment settings
@@ -462,6 +542,7 @@ contract_review_agent/
     schemas.py        strict audit schemas
     ingestion/        CUAD download, labels, held-out evaluation, and batch handoff
 examples/
+  precedents/         synthetic human-approved showcase corpus
 tests/
 .witdem/                 analytics contract and local receiver configuration
 ~~~

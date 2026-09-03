@@ -1,0 +1,108 @@
+version: 2
+id: contract_review
+name: Contract review
+description: Review a contract, preserve supporting evidence, and produce an approval or escalation route.
+
+result:
+  name: Contract review result
+  description: The structured review returned by the Haystack workflow.
+  values:
+    approved: {description: Approved without exceptions., tone: success}
+    approved_with_exceptions: {description: Approved with documented exceptions., tone: warning}
+    manual_review_required: {description: Escalated for human review., tone: warning}
+    rejected_by_playbook: {description: Rejected by the fictional playbook., tone: failure}
+    processing_failed: {description: The workflow did not complete the review., tone: failure}
+
+decision:
+  name: Review disposition
+  description: The approval, exception, escalation, rejection, or processing decision.
+  values:
+    approved: Approved without exceptions.
+    approved_with_exceptions: Approved with documented exceptions.
+    manual_review_required: Escalated for human review.
+    rejected_by_playbook: Rejected by the fictional playbook.
+    processing_failed: The workflow did not complete the review.
+
+goal:
+  name: Evidence-backed contract review completed
+  description: Apply the fictional playbook and return an evidence-backed approval or escalation route.
+  requirements:
+    review_completed:
+      name: The contract review completed
+      failure:
+        label: Contract review did not complete
+        investigate: {stage: result, node: result_assembler}
+    evidence_complete:
+      name: The review has complete source evidence and no unresolved fields
+      failure:
+        label: Contract evidence is incomplete
+        description: The assembled review reported incomplete evidence coverage or at least one unresolved field; this requirement needs full evidence coverage and zero unresolved fields.
+        investigate: {stage: extraction, node: extraction_judge}
+    playbook_evaluated:
+      name: The fictional playbook was evaluated
+      failure:
+        label: Playbook evaluation did not complete
+        investigate: {stage: playbook, node: playbook_evaluator}
+    routing_complete:
+      name: The review reached a final disposition route
+      failure:
+        label: Final review routing did not complete
+        investigate: {stage: decision, node: decision_router}
+
+evaluations:
+  evidence_completeness:
+    name: Evidence completeness
+    description: Share of evidence-bearing result items with page and source text.
+    target: 0.8
+    direction: higher_is_better
+    unit: ratio
+  extraction_confidence:
+    name: Extraction confidence
+    description: Confidence assigned to the document extraction stage.
+    target: 0.7
+    direction: higher_is_better
+    unit: ratio
+  category_f1:
+    name: CUAD category F1
+    description: Micro F1 for supported clause-presence predictions against held-out CUAD labels.
+    target: 0.7
+    direction: higher_is_better
+    unit: ratio
+  span_token_f1:
+    name: CUAD evidence span token F1
+    description: Token overlap between predicted evidence and held-out CUAD answer spans for true-positive categories.
+    target: 0.5
+    direction: higher_is_better
+    unit: ratio
+  negative_label_accuracy:
+    name: CUAD negative-label accuracy
+    description: Accuracy on supported CUAD categories annotated as absent.
+    target: 0.8
+    direction: higher_is_better
+    unit: ratio
+
+metrics:
+  workflow_retries: {name: Workflow retries, unit: retries}
+  deviations_found: {name: Deviations found, unit: deviations}
+  escalations: {name: Escalations, unit: review_areas}
+  model_input_tokens: {name: Model input tokens, unit: tokens}
+  model_output_tokens: {name: Model output tokens, unit: tokens}
+  application_model_cost: {name: Application-reported model cost, unit: USD}
+  memory_retrieval_queries: {name: Memory retrieval queries, unit: queries}
+  memory_retrieval_candidates: {name: Memory retrieval candidates, unit: precedents}
+  memory_precedents_selected: {name: Memory precedents selected, unit: precedents}
+  memory_retrieval_latency: {name: Memory retrieval latency, unit: ms}
+  evaluated_categories: {name: CUAD evaluated categories, unit: categories}
+  true_positives: {name: CUAD true positives, unit: categories}
+  false_positives: {name: CUAD false positives, unit: categories}
+  false_negatives: {name: CUAD false negatives, unit: categories}
+  true_negatives: {name: CUAD true negatives, unit: categories}
+  evaluated_spans: {name: CUAD evaluated spans, unit: spans}
+
+dimensions:
+  contract_id: {name: Contract ID}
+  agreement_type: {name: Agreement type}
+  final_decision: {name: Final decision}
+  memory_mode: {name: Contract memory mode}
+  memory_table_version: {name: Contract memory table version}
+  evaluation_version: {name: Evaluation protocol}

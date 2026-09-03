@@ -1,8 +1,7 @@
-version: 1
+version: 2
 id: contract-review
 name: Contract review
 description: Ingest a vendor agreement, extract and validate its evidence, apply the playbook, route specialist review, and return an approval or escalation decision.
-framework: haystack
 match:
   runtime_names: [haystack]
   service_names: [haystack-cuad-contract-review]
@@ -217,14 +216,67 @@ stages:
 
   - id: specialist_review
     name: Specialist review
-    description: Fan elevated-risk findings out to relevant business domains and aggregate their decisions.
+    description: Retrieve governed precedent evidence, fan elevated-risk findings out to relevant business domains, and aggregate their decisions.
     depends_on: [playbook]
     nodes:
+      - id: memory_mode_router
+        name: Select contract memory mode
+        kind: Router
+        description: Route elevated-risk reviews through off, shadow, or precedent-informed memory behavior.
+        match: {names: [memory_mode_router]}
+        depends_on: [elevated_risk_joiner]
+
+      - id: memory_bypass
+        name: Bypass contract memory
+        kind: Straight-through route
+        match: {names: [memory_bypass]}
+        depends_on:
+          - node: memory_mode_router
+            type: branch
+            route: "off"
+            label: Memory off
+
+      - id: precedent_query_builder
+        name: Build precedent queries
+        kind: Retrieval preparation
+        match: {names: [precedent_query_builder]}
+        depends_on:
+          - node: memory_mode_router
+            type: branch
+            route: enabled
+            label: Shadow or retrieve
+
+      - id: precedent_retriever
+        name: Retrieve approved precedents
+        kind: Hybrid retrieval
+        description: Use Voyage embeddings and LanceDB hybrid search with tenant, audience, and same-contract leakage filters.
+        match: {names: [precedent_retriever]}
+        depends_on: [precedent_query_builder]
+
+      - id: precedent_bundle_assembler
+        name: Assemble precedent evidence
+        kind: Evidence assembly
+        description: Deduplicate approved precedents and withhold them from decisions when running in shadow mode.
+        match: {names: [precedent_bundle_assembler]}
+        depends_on: [precedent_retriever]
+
+      - id: memory_joiner
+        name: Join contract memory route
+        kind: Convergence
+        match: {names: [memory_joiner]}
+        depends_on:
+          - node: memory_bypass
+            type: convergence
+            label: Memory bypassed
+          - node: precedent_bundle_assembler
+            type: convergence
+            label: Retrieval completed
+
       - id: domain_review_dispatcher
         name: Dispatch specialist reviews
         kind: Fan-out
         match: {names: [domain_review_dispatcher]}
-        depends_on: [elevated_risk_joiner]
+        depends_on: [memory_joiner]
 
       - id: legal_domain_review
         name: Legal review

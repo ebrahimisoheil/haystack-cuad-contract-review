@@ -1,171 +1,19 @@
-version: 1
+version: 2
 
 service:
   name: haystack-cuad-contract-review
   description: Haystack and LiteLLM workflow for contract review against a fictional playbook.
-  runtime: haystack
 
 telemetry:
-  endpoint: http://localhost:4318
+  endpoint: http://localhost:24318
   mode: auto
   capture_content: false
 
 default_contract: contract_review
 default_workflow: contract-review
 
-workflows:
-  - id: contract-review
-    definition: workflows/contract-review.yaml
-
 contracts:
-  contract_review:
-    mode: expression
-    description: Review a contract, preserve supporting evidence, and produce an approval or escalation route.
+  - contracts/contract-review.yaml
 
-    application_outcome:
-      status: $.result_assembler.result.final_decision
-
-    artifact:
-      name: Contract review result
-      description: The structured review returned by the Haystack workflow.
-      valid:
-        all:
-          - non_empty: $.result_assembler.result.contract_id
-          - $.result_assembler.result.outcome.review_completed
-
-    decision:
-      name: Review disposition
-      description: The approval, exception, escalation, rejection, or processing decision.
-      observed: $.result_assembler.result.final_decision
-      reason: $.result_assembler.result.decision_explanation
-      outcomes:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with documented exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the fictional playbook.
-        processing_failed: The workflow did not complete the review.
-
-    product_goal:
-      name: Evidence-backed contract review completed
-      description: Apply the fictional playbook and return an evidence-backed approval or escalation route.
-      achieved: $.result_assembler.result.outcome.objective_met
-
-    evaluations:
-      - name: Evidence completeness
-        description: Share of evidence-bearing result items with page and source text.
-        score: $.result_assembler.result.metrics.evidence_completeness
-        target: 0.8
-        direction: higher_is_better
-        unit: ratio
-      - name: Extraction confidence
-        description: Confidence assigned to the document extraction stage.
-        score: $.result_assembler.result.metrics.extraction_confidence
-        target: 0.7
-        direction: higher_is_better
-        unit: ratio
-
-    metrics:
-      - name: Workflow retries
-        value: $.result_assembler.result.metrics.retries
-        unit: retries
-      - name: Deviations found
-        value: $.result_assembler.result.metrics.deviation_count
-        unit: deviations
-      - name: Escalations
-        value: $.result_assembler.result.metrics.escalation_count
-        unit: review_areas
-      - name: Model input tokens
-        value: $.result_assembler.result.metrics.total_input_tokens
-        unit: tokens
-      - name: Model output tokens
-        value: $.result_assembler.result.metrics.total_output_tokens
-        unit: tokens
-      - name: Application-reported model cost
-        value: $.result_assembler.result.metrics.estimated_cost_usd
-        unit: USD
-
-    attributes:
-      contract_id: $.result_assembler.result.contract_id
-      agreement_type: $.result_assembler.result.agreement_type
-      final_decision: $.result_assembler.result.final_decision
-
-  cuad_contract_review:
-    mode: reported
-    description: Evaluate a completed contract review against held-out CUAD annotations without exposing labels to the workflow.
-
-    result:
-      name: CUAD contract review result
-      description: The terminal review disposition produced before ground-truth evaluation.
-      values:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with documented exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the fictional playbook.
-        processing_failed: The workflow did not complete the review.
-
-    decision:
-      name: Review disposition
-      description: The approval, exception, escalation, rejection, or processing decision.
-      values:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with documented exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the fictional playbook.
-        processing_failed: The workflow did not complete the review.
-
-    product_goal:
-      name: Evidence-backed CUAD contract review completed
-      description: Apply the fictional playbook and return an evidence-backed approval or escalation route, then evaluate it against held-out CUAD labels.
-
-    evaluations:
-      category_f1:
-        name: CUAD category F1
-        description: Micro F1 for supported clause-presence predictions against held-out CUAD labels.
-        target: 0.7
-        direction: higher_is_better
-        unit: ratio
-      span_token_f1:
-        name: CUAD evidence span token F1
-        description: Token overlap between predicted evidence and held-out CUAD answer spans for true-positive categories.
-        target: 0.5
-        direction: higher_is_better
-        unit: ratio
-      negative_label_accuracy:
-        name: CUAD negative-label accuracy
-        description: Accuracy on supported CUAD categories annotated as absent.
-        target: 0.8
-        direction: higher_is_better
-        unit: ratio
-
-    metrics:
-      evaluated_categories:
-        name: CUAD evaluated categories
-        unit: categories
-      true_positives:
-        name: CUAD true positives
-        unit: categories
-      false_positives:
-        name: CUAD false positives
-        unit: categories
-      false_negatives:
-        name: CUAD false negatives
-        unit: categories
-      true_negatives:
-        name: CUAD true negatives
-        unit: categories
-      evaluated_spans:
-        name: CUAD evaluated spans
-        unit: spans
-      workflow_retries:
-        name: Workflow retries
-        unit: retries
-
-    dimensions:
-      contract_id:
-        name: Contract ID
-      agreement_type:
-        name: Agreement type
-      final_decision:
-        name: Final decision
-      evaluation_version:
-        name: Evaluation protocol
+workflows:
+  - workflows/contract-review.yaml
