@@ -26,7 +26,7 @@ dependencies = [
   "pypdf>=6.0,<7",
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
-  "witdem-sdk[haystack,litellm]==0.2.1",
+  "witdem-sdk[haystack,litellm] @ git+https://github.com/ebrahimisoheil/witdem-oss.git@0e5b7f6495f639dbb305d77cead397c5a0fdd913#subdirectory=witdem-sdk",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +42,9 @@ contract-review = "contract_review_agent.app.main:main"
 contract-review-showcase = "contract_review_agent.app.showcase:main"
 contract-memory = "contract_review_agent.app.memory.cli:main"
 cuad-data = "contract_review_agent.app.ingestion.cli:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["contract_review_agent"]
