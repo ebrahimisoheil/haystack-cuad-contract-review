@@ -33,6 +33,7 @@ def test_pipeline_exposes_required_routing_nodes() -> None:
         "extraction_retry_router",
         "deviation_router",
         "risk_tier_router",
+        "memory_mode_router",
         "fallback_retry_router",
         "decision_router",
     } <= names
@@ -53,6 +54,9 @@ def test_pipeline_has_visible_business_stages() -> None:
         "playbook_evaluator",
         "risk_judge",
         "domain_review_dispatcher",
+        "precedent_query_builder",
+        "precedent_retriever",
+        "precedent_bundle_assembler",
         "legal_domain_review",
         "finance_domain_review",
         "security_domain_review",

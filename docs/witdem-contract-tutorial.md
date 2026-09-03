@@ -364,7 +364,7 @@ uv run --extra dev pytest
 For an end-to-end telemetry check, start Witdem and run the live verifier:
 
 ```bash
-npx -y witdem@stable-0-1 up
+npx -y witdem@0.2.1 up
 uv run contract-review-showcase output/showcase/scanned-vendor-saas.pdf
 ```
 

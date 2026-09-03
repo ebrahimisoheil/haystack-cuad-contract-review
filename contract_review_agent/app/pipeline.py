@@ -27,6 +27,13 @@ from .components.judges import (
     FinalReviewJudge,
     RiskJudge,
 )
+from .components.memory import (
+    MemoryBypass,
+    MemoryModeRouter,
+    PrecedentBundleAssembler,
+    PrecedentQueryBuilder,
+    PrecedentRetriever,
+)
 from .components.normalization import (
     AgreementClassifier,
     MetadataExtractor,
@@ -55,7 +62,53 @@ from .model_registry import ModelRegistry
 from .schemas import BusinessOutcome, ContractReviewResult, RunMetrics, StageMetric
 
 
+def _review_report_result(result: dict[str, Any]) -> dict[str, Any]:
+    review = result["result_assembler"]["result"]
+    outcome = review["outcome"]
+    metrics = review["metrics"]
+    memory = review["memory"]
+    return {
+        "contract": "contract_review",
+        "result": review["final_decision"],
+        "result_valid": bool(review.get("contract_id"))
+        and bool(outcome["review_completed"]),
+        "decision": review["final_decision"],
+        "requirements": {
+            "review_completed": bool(outcome["review_completed"]),
+            "evidence_complete": bool(outcome["evidence_complete"]),
+            "playbook_evaluated": bool(outcome["playbook_evaluated"]),
+            "routing_complete": bool(outcome["routing_complete"]),
+        },
+        "evidence_sufficient": bool(outcome["evidence_complete"]),
+        "required_path_observed": bool(outcome["routing_complete"]),
+        "evaluations": {
+            "evidence_completeness": metrics["evidence_completeness"],
+            "extraction_confidence": metrics["extraction_confidence"],
+        },
+        "metrics": {
+            "workflow_retries": metrics["retries"],
+            "deviations_found": metrics["deviation_count"],
+            "escalations": metrics["escalation_count"],
+            "model_input_tokens": metrics["total_input_tokens"],
+            "model_output_tokens": metrics["total_output_tokens"],
+            "application_model_cost": metrics["estimated_cost_usd"],
+            "memory_retrieval_queries": metrics["memory_query_count"],
+            "memory_retrieval_candidates": metrics["memory_candidate_count"],
+            "memory_precedents_selected": metrics["memory_selected_count"],
+            "memory_retrieval_latency": metrics["memory_retrieval_latency_ms"],
+        },
+        "dimensions": {
+            "contract_id": review["contract_id"],
+            "agreement_type": review.get("agreement_type") or "unresolved",
+            "final_decision": review["final_decision"],
+            "memory_mode": metrics["memory_mode"],
+            "memory_table_version": memory.get("table_version") or "unversioned",
+        },
+    }
+
+
 def _cuad_report_result(result: dict[str, Any]) -> dict[str, Any]:
+    reported = _review_report_result(result)
     review = result["result_assembler"]["result"]
     evaluation = review["cuad_evaluation"]
     optional_evaluations = {
@@ -87,41 +140,28 @@ def _cuad_report_result(result: dict[str, Any]) -> dict[str, Any]:
     application_evidence_sufficient = (
         float(review["metrics"]["evidence_completeness"]) >= 0.8
     )
-    return {
-        "contract": "cuad_contract_review",
-        "result": review["final_decision"],
-        "result_valid": bool(review.get("contract_id"))
-        and bool(review["outcome"]["review_completed"]),
-        "decision": review["final_decision"],
-        "product_goal_achieved": bool(review["outcome"]["objective_met"]),
-        "evidence_sufficient": application_evidence_sufficient and evaluation_assured,
-        "required_path_observed": bool(review["outcome"]["routing_complete"]),
-        "closest_blocker": (
-            review["final_decision"]
-            if not review["outcome"]["objective_met"]
-            else ("none" if evaluation_assured else "cuad_evaluation_below_target")
-        ),
-        "evaluations": {
+    reported["evidence_sufficient"] = (
+        application_evidence_sufficient and evaluation_assured
+    )
+    reported["evaluations"].update(
+        {
             key: value
             for key, value in optional_evaluations.items()
             if value is not None
-        },
-        "metrics": {
+        }
+    )
+    reported["metrics"].update(
+        {
             "evaluated_categories": evaluation["evaluated_categories"],
             "true_positives": evaluation["true_positives"],
             "false_positives": evaluation["false_positives"],
             "false_negatives": evaluation["false_negatives"],
             "true_negatives": evaluation["true_negatives"],
             "evaluated_spans": evaluation["evaluated_spans"],
-            "workflow_retries": review["metrics"]["retries"],
-        },
-        "dimensions": {
-            "contract_id": review["contract_id"],
-            "agreement_type": review.get("agreement_type") or "unresolved",
-            "final_decision": review["final_decision"],
-            "evaluation_version": evaluation["evaluation_version"],
-        },
-    }
+        }
+    )
+    reported["dimensions"]["evaluation_version"] = evaluation["evaluation_version"]
+    return reported
 
 
 def _cuad_result_reporter(
@@ -235,6 +275,12 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
         "low_risk_acceptance": LowRiskAcceptanceRoute(settings, models),
         "high_risk_policy_gate": HighRiskPolicyGate(settings, models),
         "elevated_risk_joiner": BranchJoiner(Context),
+        "memory_mode_router": MemoryModeRouter(settings, models),
+        "memory_bypass": MemoryBypass(settings, models),
+        "precedent_query_builder": PrecedentQueryBuilder(settings, models),
+        "precedent_retriever": PrecedentRetriever(settings, models),
+        "precedent_bundle_assembler": PrecedentBundleAssembler(settings, models),
+        "memory_joiner": BranchJoiner(Context),
         "domain_review_dispatcher": DomainReviewDispatcher(settings, models),
         "legal_domain_review": DomainReviewer(settings, models, "legal"),
         "finance_domain_review": DomainReviewer(settings, models, "finance"),
@@ -303,7 +349,18 @@ def build_pipeline(settings: Settings | None = None) -> Pipeline:
     pipeline.connect("risk_tier_router.medium_context", "elevated_risk_joiner.value")
     pipeline.connect("risk_tier_router.high_context", "high_risk_policy_gate.context")
     pipeline.connect("high_risk_policy_gate.context", "elevated_risk_joiner.value")
-    pipeline.connect("elevated_risk_joiner.value", "domain_review_dispatcher.context")
+    pipeline.connect("elevated_risk_joiner.value", "memory_mode_router.context")
+    pipeline.connect("memory_mode_router.off_context", "memory_bypass.context")
+    pipeline.connect(
+        "memory_mode_router.enabled_context", "precedent_query_builder.context"
+    )
+    pipeline.connect("precedent_query_builder.context", "precedent_retriever.context")
+    pipeline.connect(
+        "precedent_retriever.context", "precedent_bundle_assembler.context"
+    )
+    pipeline.connect("memory_bypass.context", "memory_joiner.value")
+    pipeline.connect("precedent_bundle_assembler.context", "memory_joiner.value")
+    pipeline.connect("memory_joiner.value", "domain_review_dispatcher.context")
     pipeline.connect(
         "domain_review_dispatcher.legal_contexts", "legal_domain_review.contexts"
     )
@@ -372,7 +429,7 @@ def run_review(
             report_result=(
                 _cuad_result_reporter(ground_truth)
                 if ground_truth is not None
-                else None
+                else _review_report_result
             ),
         )
         litellm_registration = install_litellm()
@@ -405,6 +462,18 @@ def run_review(
             review_areas=[],
             domain_reviews=[],
             obligations=[],
+            memory={
+                "mode": settings.memory_mode if settings else "off",
+                "embedding_model": "unavailable",
+                "table": settings.memory_table if settings else "contract_precedents",
+                "table_version": None,
+                "query_count": 0,
+                "candidate_count": 0,
+                "selected_count": 0,
+                "retrieval_latency_ms": 0.0,
+                "selected_precedents": [],
+                "shadow_precedents": [],
+            },
             outcome=BusinessOutcome(
                 review_completed=False,
                 evidence_complete=False,

@@ -129,6 +129,11 @@ class RunMetrics(StrictModel):
     total_input_tokens: int = Field(default=0, ge=0)
     total_output_tokens: int = Field(default=0, ge=0)
     estimated_cost_usd: float = Field(default=0, ge=0)
+    memory_mode: Literal["off", "shadow", "retrieve"] = "off"
+    memory_query_count: int = Field(default=0, ge=0)
+    memory_candidate_count: int = Field(default=0, ge=0)
+    memory_selected_count: int = Field(default=0, ge=0)
+    memory_retrieval_latency_ms: float = Field(default=0.0, ge=0)
 
 
 class BusinessOutcome(StrictModel):
@@ -137,6 +142,37 @@ class BusinessOutcome(StrictModel):
     playbook_evaluated: bool
     routing_complete: bool
     objective_met: bool
+
+
+class PrecedentCitation(StrictModel):
+    precedent_id: str
+    contract_id: str
+    contract_version: int = Field(ge=1)
+    clause_type: str
+    agreement_type: str
+    jurisdiction: str | None = None
+    page: int = Field(ge=1)
+    source_text: str
+    normalized_meaning: str
+    final_decision: Decision
+    approved_fallback: str | None = None
+    decision_rationale: str
+    policy_version: str
+    source_hash: str
+    relevance_score: float = Field(ge=0)
+
+
+class ContractMemoryEvidence(StrictModel):
+    mode: Literal["off", "shadow", "retrieve"]
+    embedding_model: str
+    table: str
+    table_version: int | None = None
+    query_count: int = Field(ge=0)
+    candidate_count: int = Field(ge=0)
+    selected_count: int = Field(ge=0)
+    retrieval_latency_ms: float = Field(ge=0)
+    selected_precedents: list[PrecedentCitation]
+    shadow_precedents: list[PrecedentCitation]
 
 
 class CuadCategoryEvaluation(StrictModel):
@@ -192,6 +228,7 @@ class ContractReviewResult(StrictModel):
     review_areas: list[ReviewArea]
     domain_reviews: list[DomainReview]
     obligations: list[Obligation]
+    memory: ContractMemoryEvidence
     outcome: BusinessOutcome
     metrics: RunMetrics
     cuad_evaluation: CuadGroundTruthEvaluation | None = None

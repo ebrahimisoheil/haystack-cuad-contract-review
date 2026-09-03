@@ -1,8 +1,7 @@
-version: 1
+version: 2
 
 service:
   name: haystack-cuad-contract-review-tests
-  runtime: haystack
 
 telemetry:
   # Reserved discard port: exercises instrumentation without reaching a live
@@ -12,68 +11,10 @@ telemetry:
   capture_content: false
 
 default_contract: contract_review
+default_workflow: contract-review
 
 contracts:
-  contract_review:
-    mode: expression
-    artifact:
-      name: Contract review result
-      valid:
-        all:
-          - non_empty: $.result_assembler.result.contract_id
-          - $.result_assembler.result.outcome.review_completed
-    decision:
-      name: Review disposition
-      observed: $.result_assembler.result.final_decision
-      reason: $.result_assembler.result.decision_explanation
-      outcomes:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with documented exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the fictional playbook.
-        processing_failed: The workflow did not complete the review.
-    application_outcome:
-      status: $.result_assembler.result.final_decision
-    product_goal:
-      achieved: $.result_assembler.result.outcome.objective_met
+  - ../../.witdem/contracts/contract-review.yaml
 
-  cuad_contract_review:
-    mode: reported
-    result:
-      name: CUAD contract review result
-      values:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the playbook.
-        processing_failed: Processing failed.
-    decision:
-      name: Review disposition
-      values:
-        approved: Approved without exceptions.
-        approved_with_exceptions: Approved with exceptions.
-        manual_review_required: Escalated for human review.
-        rejected_by_playbook: Rejected by the playbook.
-        processing_failed: Processing failed.
-    product_goal:
-      name: Evidence-backed CUAD contract review completed
-    evaluations:
-      category_f1:
-        name: CUAD category F1
-      span_token_f1:
-        name: CUAD evidence span token F1
-      negative_label_accuracy:
-        name: CUAD negative-label accuracy
-    metrics:
-      evaluated_categories: CUAD evaluated categories
-      true_positives: CUAD true positives
-      false_positives: CUAD false positives
-      false_negatives: CUAD false negatives
-      true_negatives: CUAD true negatives
-      evaluated_spans: CUAD evaluated spans
-      workflow_retries: Workflow retries
-    dimensions:
-      contract_id: Contract ID
-      agreement_type: Agreement type
-      final_decision: Final decision
-      evaluation_version: Evaluation protocol
+workflows:
+  - ../../.witdem/workflows/contract-review.yaml

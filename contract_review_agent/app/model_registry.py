@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -11,7 +14,7 @@ from haystack.utils import Secret
 from .config import Settings
 
 
-ModelRole = Literal["text", "vision", "judge"]
+ModelRole = Literal["text", "vision", "judge", "embedding"]
 
 
 class ModelAccessError(RuntimeError):
@@ -21,8 +24,9 @@ class ModelAccessError(RuntimeError):
 class ModelRegistry:
     """Declarative role registry backed by Haystack's official LiteLLM generator.
 
-    The only direct LiteLLM call is ``ocr`` because the Generator integration is
-    chat-oriented and does not expose LiteLLM's document OCR endpoint.
+    Chat calls use Haystack's official LiteLLM generator. OCR and embeddings use
+    the shared registry's LiteLLM endpoints because the chat generator does not
+    expose those non-chat operations.
     """
 
     def __init__(self, settings: Settings):
@@ -44,7 +48,9 @@ class ModelRegistry:
         name = str(self.models[role]["api_key_env"])
         value = os.getenv(name)
         if not value:
-            raise ModelAccessError(f"{name} is required for the {role} role in live mode")
+            raise ModelAccessError(
+                f"{name} is required for the {role} role in live mode"
+            )
         return value
 
     @staticmethod
@@ -52,14 +58,18 @@ class ModelRegistry:
         try:
             value = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ModelAccessError(f"LiteLLM {role} role returned malformed JSON: {exc}") from exc
+            raise ModelAccessError(
+                f"LiteLLM {role} role returned malformed JSON: {exc}"
+            ) from exc
         if not isinstance(value, dict):
             raise ModelAccessError(f"LiteLLM {role} role must return a JSON object")
         return value
 
     def _generator(self, role: Literal["text", "judge"]) -> Any:
         if role not in self._generators:
-            from haystack_integrations.components.generators.litellm import LiteLLMChatGenerator
+            from haystack_integrations.components.generators.litellm import (
+                LiteLLMChatGenerator,
+            )
 
             key_name = str(self.models[role]["api_key_env"])
             self._require_key(role)
@@ -78,6 +88,72 @@ class ModelRegistry:
             )
         return self._generators[role]
 
+    @staticmethod
+    def _deterministic_embedding(text: str, dimensions: int) -> list[float]:
+        """Stable feature-hash vectors for offline orchestration and retrieval tests."""
+        vector = [0.0] * dimensions
+        for token in re.findall(r"[a-z0-9]+", text.casefold()):
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % dimensions
+            vector[index] += -1.0 if digest[4] & 1 else 1.0
+        norm = math.sqrt(sum(value * value for value in vector))
+        return [value / norm for value in vector] if norm else vector
+
+    def embed_texts(
+        self,
+        texts: list[str],
+        *,
+        input_type: Literal["query", "document"],
+    ) -> list[list[float]]:
+        dimensions = int(self.models["embedding"].get("dimensions", 1024))
+        if self.settings.mode == "deterministic":
+            self._usage["embedding"] = {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "estimated_cost_usd": 0.0,
+            }
+            return [self._deterministic_embedding(text, dimensions) for text in texts]
+        self._require_key("embedding")
+        try:
+            import litellm
+
+            response = litellm.embedding(
+                model=self.model_name("embedding"),
+                input=texts,
+                input_type=input_type,
+                dimensions=dimensions,
+                timeout=self.settings.timeout_seconds,
+                num_retries=int(self.models["embedding"].get("provider_retries", 0)),
+            )
+            vectors = [list(item["embedding"]) for item in response.data]
+            if len(vectors) != len(texts) or any(
+                len(vector) != dimensions for vector in vectors
+            ):
+                raise ModelAccessError("LiteLLM embedding response shape is invalid")
+            usage = getattr(response, "usage", None)
+            input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            estimated_cost = 0.0
+            try:
+                estimated_cost = float(
+                    litellm.completion_cost(
+                        completion_response=response,
+                        model=self.model_name("embedding"),
+                        call_type="embedding",
+                    )
+                )
+            except Exception:
+                estimated_cost = 0.0
+            self._usage["embedding"] = {
+                "input_tokens": input_tokens,
+                "output_tokens": 0,
+                "estimated_cost_usd": estimated_cost,
+            }
+            return vectors
+        except Exception as exc:
+            if isinstance(exc, ModelAccessError):
+                raise
+            raise ModelAccessError(f"LiteLLM embedding request failed: {exc}") from exc
+
     def call_json(
         self,
         role: Literal["text", "judge"],
@@ -89,7 +165,10 @@ class ModelRegistry:
             return None
         try:
             reply = self._generator(role).run(
-                messages=[ChatMessage.from_system(system), ChatMessage.from_user(prompt)]
+                messages=[
+                    ChatMessage.from_system(system),
+                    ChatMessage.from_user(prompt),
+                ]
             )["replies"][0]
             usage = reply.meta.get("usage", {}) if reply.meta else {}
             prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)

@@ -20,3 +20,10 @@ models:
     response_format: json_object
     provider_retries: 0
     fallback_models: []
+  embedding:
+    provider: litellm
+    model: voyage/voyage-4-large
+    api_key_env: VOYAGE_API_KEY
+    dimensions: 1024
+    provider_retries: 0
+    fallback_models: []

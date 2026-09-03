@@ -129,7 +129,7 @@ def test_batch_aggregation_recomputes_micro_metrics() -> None:
     assert aggregate["category_f1"] == pytest.approx(0.5)
 
 
-def test_witdem_report_uses_dedicated_contract_and_omits_missing_scores() -> None:
+def test_witdem_report_uses_unified_contract_and_omits_missing_scores() -> None:
     evaluation = evaluate_cuad_ground_truth(
         _prediction(),
         [_label("Anti-Assignment", None)],
@@ -144,24 +144,40 @@ def test_witdem_report_uses_dedicated_contract_and_omits_missing_scores() -> Non
                     "decision_explanation": "Human review is required.",
                     "outcome": {
                         "review_completed": True,
+                        "evidence_complete": True,
+                        "playbook_evaluated": True,
                         "routing_complete": True,
                         "objective_met": True,
                     },
-                    "metrics": {"evidence_completeness": 1.0, "retries": 2},
+                    "metrics": {
+                        "evidence_completeness": 1.0,
+                        "extraction_confidence": 1.0,
+                        "retries": 2,
+                        "deviation_count": 1,
+                        "escalation_count": 1,
+                        "total_input_tokens": 10,
+                        "total_output_tokens": 5,
+                        "estimated_cost_usd": 0.01,
+                        "memory_query_count": 0,
+                        "memory_candidate_count": 0,
+                        "memory_selected_count": 0,
+                        "memory_retrieval_latency_ms": 0.0,
+                        "memory_mode": "off",
+                    },
+                    "memory": {"table_version": None},
                     "cuad_evaluation": evaluation,
                 }
             }
         }
     )
 
-    assert report["contract"] == "cuad_contract_review"
+    assert report["contract"] == "contract_review"
     assert report["result"] == "manual_review_required"
-    assert report["product_goal_achieved"] is True
+    assert all(report["requirements"].values())
     assert "category_f1" not in report["evaluations"]
     assert report["evaluations"]["negative_label_accuracy"] == 0
     assert "span_token_f1" not in report["evaluations"]
     assert report["evidence_sufficient"] is False
-    assert report["closest_blocker"] == "cuad_evaluation_below_target"
     assert report["metrics"]["false_positives"] == 1
 
 
@@ -181,10 +197,27 @@ def test_post_run_reporter_keeps_answer_text_out_of_reported_facts() -> None:
                 "decision_explanation": "Human review is required.",
                 "outcome": {
                     "review_completed": True,
+                    "evidence_complete": True,
+                    "playbook_evaluated": True,
                     "routing_complete": True,
                     "objective_met": True,
                 },
-                "metrics": {"evidence_completeness": 1.0, "retries": 0},
+                "metrics": {
+                    "evidence_completeness": 1.0,
+                    "extraction_confidence": 1.0,
+                    "retries": 0,
+                    "deviation_count": 0,
+                    "escalation_count": 0,
+                    "total_input_tokens": 10,
+                    "total_output_tokens": 5,
+                    "estimated_cost_usd": 0.01,
+                    "memory_query_count": 0,
+                    "memory_candidate_count": 0,
+                    "memory_selected_count": 0,
+                    "memory_retrieval_latency_ms": 0.0,
+                    "memory_mode": "off",
+                },
+                "memory": {"table_version": None},
             }
         }
     }
